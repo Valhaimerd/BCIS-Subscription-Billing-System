@@ -13,7 +13,6 @@ The system replaces disconnected spreadsheets or manual records with one authori
 - Maintain subscribers, service accounts, plans, collection areas, and collectors.
 - Generate monthly invoices without billing the same service twice.
 - Record exact, partial, advance, Cash, and GCash payments.
-- The cashier receives payments through account search cards, a focused details step, an oldest-first allocation review, and a distinct receipt or pending-verification result. A changed balance requires another review; retries use one payment request key.
 - Allocate payments to the oldest unpaid invoices and preserve subscriber credit.
 - Issue unique receipts and correct mistakes through traceable reversal instead of deletion.
 - Prepare collector route sheets, record field collections, and expose shortages or overages.
@@ -21,6 +20,12 @@ The system replaces disconnected spreadsheets or manual records with one authori
 - Track suspension and reconnection activity.
 - Produce management reports in PDF and XLSX formats.
 - Protect operations with user roles, audit history, and verified backup/restore.
+
+## Current desktop journeys
+
+- Cashiers find an account card, enter payment details, review oldest-first allocation, then reach a receipt or a pending GCash verification result. Changed balances require another review; a retry of a direct payment uses the same request key.
+- Staff find subscribers through account cards. Authorized staff register an account through Identity → Contact and location → Billing defaults → Review.
+- A subscriber profile groups work into Overview, Services, Money, and History. Authorized staff add a service through Choose plan → Installation → Billing schedule → Review. The service save does not itself create an invoice.
 
 ## Intended users
 

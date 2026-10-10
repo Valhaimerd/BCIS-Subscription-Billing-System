@@ -494,8 +494,8 @@ describe('authenticated desktop shell', () => {
     expect(
       await screen.findByRole('group', { name: 'Subscriber balance context' }),
     ).toBeVisible();
-    const activityTab = screen.getByRole('tab', { name: 'Activity' });
-    activityTab.focus();
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    overviewTab.focus();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: /^Services/ })).toHaveAttribute(
       'aria-selected',

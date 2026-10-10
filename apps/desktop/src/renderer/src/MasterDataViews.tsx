@@ -9,6 +9,10 @@ import type { ReferenceData } from '../../shared/desktop-api';
 import { ActionDialog } from './ActionDialog';
 import { SubscriberBillingPanel } from './BillingViews';
 import { SubscriberActivity } from './SubscriberActivity';
+import {
+  SubscriberCreateWizard,
+  ServiceCreateWizard,
+} from './SubscriberWizards';
 import type { AppViewId } from './navigation';
 
 const money = (centavos: number) =>
@@ -444,6 +448,8 @@ export function SubscribersView({
   const [references, setReferences] = useState<ReferenceData | null>(null);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const listRequest = useRef(0);
   useEffect(() => {
     const frame = window.requestAnimationFrame(() =>
       !navigator.userAgent.includes('jsdom')
@@ -452,16 +458,32 @@ export function SubscribersView({
     );
     return () => window.cancelAnimationFrame(frame);
   }, [selected?.id, selected?.serviceCount, selected?.status]);
-  const load = () =>
-    window.bcis?.masterData
-      .listSubscribers({ q: query, page, pageSize: 20 })
-      .then(setResult)
-      .catch((caught) => setError(message(caught)));
+  async function load(nextPage = page, nextQuery = query) {
+    const request = ++listRequest.current;
+    if (!window.bcis) return;
+    setLoading(true);
+    setError('');
+    try {
+      const next = await window.bcis.masterData.listSubscribers({
+        q: nextQuery,
+        page: nextPage,
+        pageSize: 20,
+      });
+      if (request === listRequest.current) setResult(next);
+    } catch (caught) {
+      if (request === listRequest.current) setError(message(caught));
+    } finally {
+      if (request === listRequest.current) setLoading(false);
+    }
+  }
   useEffect(() => {
     void load();
   }, [page]);
   useEffect(() => {
-    void window.bcis?.masterData.references().then(setReferences);
+    void window.bcis?.masterData
+      .references()
+      .then(setReferences)
+      .catch((caught) => setError(message(caught)));
   }, []);
   useEffect(() => {
     if (!initialSubscriberId || selected?.id === initialSubscriberId) return;
@@ -480,8 +502,8 @@ export function SubscribersView({
   }, [initialSubscriberId, selected?.id]);
   async function search(event: React.FormEvent) {
     event.preventDefault();
-    setPage(1);
-    load();
+    if (page === 1) void load(1, query);
+    else setPage(1);
   }
   async function open(id: string) {
     try {
@@ -492,41 +514,12 @@ export function SubscribersView({
       setError(message(caught));
     }
   }
-  async function create(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setError('');
-    try {
-      const created = await window.bcis!.masterData.createSubscriber({
-        accountNumber: String(form.get('accountNumber')),
-        fullName: String(form.get('fullName')),
-        collectionAreaId: String(form.get('collectionAreaId')) || null,
-        assignedCollectorId: String(form.get('assignedCollectorId')) || null,
-        notes: String(form.get('notes')),
-        defaultBillingDay: Number(form.get('defaultBillingDay')),
-        defaultDueDay: Number(form.get('defaultDueDay')),
-        addresses: [
-          {
-            label: 'Primary',
-            addressLine: String(form.get('address')),
-            isPrimary: true,
-          },
-        ],
-        contacts: [
-          {
-            type: String(form.get('contactType')),
-            value: String(form.get('contact')),
-            isPrimary: true,
-          },
-        ],
-      });
-      setShowCreate(false);
-      setSelected(created);
-      onProfileSelected?.(created.id);
-      load();
-    } catch (caught) {
-      setError(message(caught));
-    }
+  async function create(input: Record<string, unknown>) {
+    const created = await window.bcis!.masterData.createSubscriber(input);
+    setShowCreate(false);
+    setSelected(created);
+    onProfileSelected?.(created.id);
+    void load();
   }
   if (selected)
     return (
@@ -542,187 +535,131 @@ export function SubscribersView({
         onBack={() => {
           setSelected(null);
           onProfileSelected?.(undefined);
-          load();
+          void load();
         }}
         onRefresh={() => open(selected.id)}
       />
     );
   return (
     <div className="data-layout">
-      <section className="data-card table-card">
-        <div className="card-heading">
-          <div>
-            <span>Subscriber master</span>
-            <h2>Accounts</h2>
+      {showCreate ? (
+        references ? (
+          <SubscriberCreateWizard
+            references={references}
+            onCancel={() => setShowCreate(false)}
+            onCreate={create}
+          />
+        ) : (
+          <section className="data-card">
+            {error ? (
+              <div className="form-error" role="alert">
+                {error}
+              </div>
+            ) : (
+              <div className="empty-state" role="status">
+                Loading setup options…
+              </div>
+            )}
+            <button onClick={() => setShowCreate(false)} type="button">
+              Back to subscribers
+            </button>
+          </section>
+        )
+      ) : (
+        <section className="subscriber-directory">
+          <div className="subscriber-directory-header">
+            <div>
+              <span className="journey-eyebrow">Subscriber workspace</span>
+              <h2>Find a subscriber</h2>
+              <p>Open one account to see its services, money, and history.</p>
+            </div>
+            {canManage ? (
+              <button
+                className="primary-action"
+                onClick={() => setShowCreate(true)}
+                type="button"
+              >
+                Register subscriber
+              </button>
+            ) : null}
           </div>
-          {canManage ? (
-            <button
-              className="primary-action compact"
-              onClick={() => setShowCreate((value) => !value)}
-              type="button"
-            >
-              {showCreate ? 'Cancel' : 'Register subscriber'}
-            </button>
-          ) : null}
-        </div>
-        {showCreate && references ? (
-          <form className="form-grid wide-form" onSubmit={create}>
-            <label>
-              Subscriber number
-              <input name="accountNumber" required />
-            </label>
-            <label>
-              Full name
-              <input name="fullName" required />
-            </label>
-            <label>
-              Primary contact type
-              <select name="contactType">
-                <option value="MOBILE">Mobile</option>
-                <option value="EMAIL">Email</option>
-                <option value="OTHER">Other</option>
-              </select>
-            </label>
-            <label>
-              Primary contact
-              <input name="contact" required />
-            </label>
-            <label className="span-two">
-              Primary address
-              <input name="address" required />
-            </label>
-            <label>
-              Collection area
-              <select name="collectionAreaId">
-                <option value="">Unassigned</option>
-                {references.collectionAreas.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Collector
-              <select name="assignedCollectorId">
-                <option value="">Unassigned</option>
-                {references.collectors.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Default billing day
-              <input
-                defaultValue="1"
-                max="28"
-                min="1"
-                name="defaultBillingDay"
-                type="number"
-              />
-            </label>
-            <label>
-              Default due day
-              <input
-                defaultValue="15"
-                max="28"
-                min="1"
-                name="defaultDueDay"
-                type="number"
-              />
-            </label>
-            <label className="span-two">
-              Notes
-              <textarea name="notes" />
-            </label>
-            <button className="primary-action" type="submit">
-              Save subscriber
-            </button>
-          </form>
-        ) : null}
-        <form className="list-search" onSubmit={search}>
-          <label>
-            <span className="sr-only">Search accounts</span>
+          <form className="subscriber-search-form" onSubmit={search}>
             <input
+              aria-label="Search accounts"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Account, name, contact, address, or service number"
               type="search"
               value={query}
             />
-          </label>
-          <button type="submit">Search</button>
-        </form>
-        {error ? (
-          <div className="form-error" role="alert">
-            {error}
+            <button type="submit">Find account</button>
+          </form>
+          {error ? (
+            <div className="form-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+          <div
+            aria-label="Subscriber accounts"
+            className="subscriber-card-grid"
+          >
+            {result.items.map((item) => (
+              <button
+                aria-label={`Open profile for ${item.fullName}`}
+                className="subscriber-directory-card"
+                key={item.id}
+                onClick={() => void open(item.id)}
+                type="button"
+              >
+                <span aria-hidden="true" className="subscriber-card-avatar">
+                  {item.fullName.slice(0, 1)}
+                </span>
+                <span className="subscriber-card-body">
+                  <strong>{item.fullName}</strong>
+                  <small>
+                    {item.accountNumber} · {item.serviceCount}{' '}
+                    {item.serviceCount === 1 ? 'service' : 'services'}
+                  </small>
+                  <span>{item.primaryContact ?? 'No primary contact'}</span>
+                  <span>{item.primaryAddress ?? 'No address on file'}</span>
+                  <span className="subscriber-card-bottom">
+                    <em>{item.status.toLowerCase()}</em>
+                    <b>Open profile →</b>
+                  </span>
+                </span>
+              </button>
+            ))}
           </div>
-        ) : null}
-        <div className="table-scroll subscriber-table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Subscriber</th>
-                <th>Contact</th>
-                <th>Address</th>
-                <th>Services</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.items.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.accountNumber}</td>
-                  <td>
-                    <button
-                      aria-label={`Open profile for ${item.fullName}`}
-                      className="record-link"
-                      onClick={() => void open(item.id)}
-                      type="button"
-                    >
-                      {item.fullName}
-                    </button>
-                  </td>
-                  <td>{item.primaryContact ?? '—'}</td>
-                  <td>{item.primaryAddress ?? '—'}</td>
-                  <td>{item.serviceCount}</td>
-                  <td>
-                    <span
-                      className={`record-status ${item.status === 'ACTIVE' ? 'active' : ''}`}
-                    >
-                      {item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!result.items.length ? (
-          <div className="empty-state">No subscribers match this search.</div>
-        ) : null}
-        <div className="pagination">
-          <span>
-            {result.total} records · Page {result.page}
-          </span>
-          <div>
-            <button
-              disabled={page === 1}
-              onClick={() => setPage((value) => value - 1)}
-            >
-              Previous
-            </button>
-            <button
-              disabled={page * result.pageSize >= result.total}
-              onClick={() => setPage((value) => value + 1)}
-            >
-              Next
-            </button>
+          {loading ? (
+            <div className="empty-state" role="status">
+              Loading subscribers…
+            </div>
+          ) : null}
+          {!loading && !result.items.length ? (
+            <div className="empty-state">No subscribers match this search.</div>
+          ) : null}
+          <div className="pagination">
+            <span>
+              {result.total} records · Page {result.page}
+            </span>
+            <div>
+              <button
+                disabled={page === 1}
+                onClick={() => setPage((value) => value - 1)}
+                type="button"
+              >
+                Previous
+              </button>
+              <button
+                disabled={page * result.pageSize >= result.total}
+                onClick={() => setPage((value) => value + 1)}
+                type="button"
+              >
+                Next
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }
@@ -748,7 +685,9 @@ function SubscriberProfile({
   onBack: () => void;
   onRefresh: () => void;
 }) {
-  const [tab, setTab] = useState('activity');
+  const [tab, setTab] = useState('overview');
+  const [moneyMode, setMoneyMode] = useState<'billing' | 'ledger'>('billing');
+  const [showAddService, setShowAddService] = useState(false);
   const [error, setError] = useState('');
   const [balance, setBalance] = useState<{
     asOf: string;
@@ -766,20 +705,13 @@ function SubscriberProfile({
   ).length;
   const otherServiceCount = profile.serviceAccounts.length - activeServiceCount;
   const profileTabs = [
-    { id: 'activity', label: 'Activity' },
+    { id: 'overview', label: 'Overview' },
     { id: 'services', label: `Services · ${profile.serviceAccounts.length}` },
-    ...(canViewBilling
-      ? [
-          { id: 'billing', label: 'Billing' },
-          { id: 'ledger', label: 'Ledger' },
-        ]
-      : []),
-    { id: 'contacts', label: 'Contacts' },
-    { id: 'addresses', label: 'Addresses' },
-    { id: 'history', label: 'Service history' },
+    ...(canViewBilling ? [{ id: 'money', label: 'Money' }] : []),
+    { id: 'history', label: 'History' },
   ];
   useEffect(() => {
-    setTab('activity');
+    setTab('overview');
   }, [profile.id]);
   useEffect(() => {
     if (!canViewReceivables || !window.bcis) {
@@ -864,26 +796,10 @@ function SubscriberProfile({
       setError(message(caught));
     }
   }
-  async function addService(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      await window.bcis!.masterData.createServiceAccount(profile.id, {
-        accountNumber: String(form.get('accountNumber')),
-        planId: String(form.get('planId')),
-        installationAddressId:
-          String(form.get('installationAddressId')) || null,
-        assignedCollectorId: String(form.get('assignedCollectorId')) || null,
-        billingDay: Number(form.get('billingDay')),
-        dueDay: Number(form.get('dueDay')),
-        billingStartDate: String(form.get('billingStartDate')),
-        status: 'ACTIVE',
-        activationDate: new Date().toISOString(),
-      });
-      onRefresh();
-    } catch (caught) {
-      setError(message(caught));
-    }
+  async function addService(input: Record<string, unknown>) {
+    await window.bcis!.masterData.createServiceAccount(profile.id, input);
+    setShowAddService(false);
+    onRefresh();
   }
   return (
     <div className="profile-stack">
@@ -1032,12 +948,54 @@ function SubscriberProfile({
         role="tabpanel"
         tabIndex={0}
       >
-        {tab === 'activity' ? (
-          <SubscriberActivity
-            subscriberId={profile.id}
-            permissions={permissions}
-            onNavigate={onNavigate}
-          />
+        {tab === 'overview' ? (
+          <div className="profile-overview-stack">
+            <div className="profile-overview-cards">
+              <section className="data-card detail-list">
+                <div className="card-heading">
+                  <div>
+                    <span>Ways to reach them</span>
+                    <h2>Contacts</h2>
+                  </div>
+                </div>
+                {profile.contacts.map((item) => (
+                  <div key={item.id}>
+                    <strong>
+                      {item.type}
+                      {item.isPrimary ? ' · Primary' : ''}
+                    </strong>
+                    <span>{item.value}</span>
+                  </div>
+                ))}
+                {!profile.contacts.length ? (
+                  <p>No contact details on file.</p>
+                ) : null}
+              </section>
+              <section className="data-card detail-list">
+                <div className="card-heading">
+                  <div>
+                    <span>Service location</span>
+                    <h2>Addresses</h2>
+                  </div>
+                </div>
+                {profile.addresses.map((item) => (
+                  <div key={item.id}>
+                    <strong>
+                      {item.label}
+                      {item.isPrimary ? ' · Primary' : ''}
+                    </strong>
+                    <span>{item.addressLine}</span>
+                  </div>
+                ))}
+                {!profile.addresses.length ? <p>No address on file.</p> : null}
+              </section>
+            </div>
+            <SubscriberActivity
+              subscriberId={profile.id}
+              permissions={permissions}
+              onNavigate={onNavigate}
+            />
+          </div>
         ) : null}
         {tab === 'services' ? (
           <section className="data-card">
@@ -1046,156 +1004,88 @@ function SubscriberProfile({
                 <span>Connected services</span>
                 <h2>{profile.serviceAccounts.length} service accounts</h2>
               </div>
+              {canManageService &&
+              references &&
+              profile.status !== 'ARCHIVED' &&
+              !showAddService ? (
+                <button
+                  className="primary-action"
+                  onClick={() => setShowAddService(true)}
+                  type="button"
+                >
+                  Add service
+                </button>
+              ) : null}
             </div>
-            {profile.serviceAccounts.map((service) => (
-              <article className="service-row" key={service.id}>
-                <div>
-                  <strong>{service.accountNumber}</strong>
-                  <span>
-                    {service.planName} · {service.serviceTypeCode}
-                  </span>
-                </div>
-                <div>
-                  <strong>{money(service.currentRateCentavos)}</strong>
-                  <span>
-                    Billing {service.billingDay} · Due {service.dueDay}
-                  </span>
-                  <span
-                    className={`record-status ${service.status === 'ACTIVE' ? 'active' : ''}`}
-                  >
-                    {service.status}
-                  </span>
-                </div>
-              </article>
-            ))}
+            <div className="profile-service-cards">
+              {profile.serviceAccounts.map((service) => (
+                <article className="service-row" key={service.id}>
+                  <div>
+                    <strong>{service.accountNumber}</strong>
+                    <span>
+                      {service.planName} · {service.serviceTypeCode}
+                    </span>
+                  </div>
+                  <div>
+                    <strong>{money(service.currentRateCentavos)}</strong>
+                    <span>
+                      Billing {service.billingDay} · Due {service.dueDay}
+                    </span>
+                    <span
+                      className={`record-status ${service.status === 'ACTIVE' ? 'active' : ''}`}
+                    >
+                      {service.status}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
             {!profile.serviceAccounts.length ? (
               <div className="empty-state profile-empty-state">
                 <strong>No connected services</strong>
                 <span>Add a service account when the subscriber is ready.</span>
               </div>
             ) : null}
-            {canManageService && references && profile.status !== 'ARCHIVED' ? (
-              <form
-                className="form-grid wide-form embedded-form"
-                onSubmit={addService}
+            {canManageService &&
+            references &&
+            profile.status !== 'ARCHIVED' &&
+            showAddService ? (
+              <ServiceCreateWizard
+                profile={profile}
+                references={references}
+                onCancel={() => setShowAddService(false)}
+                onCreate={addService}
+              />
+            ) : null}
+          </section>
+        ) : null}
+        {tab === 'money' ? (
+          <div className="profile-money-stack">
+            <div
+              aria-label="Money sections"
+              className="profile-money-switch"
+              role="group"
+            >
+              <button
+                aria-pressed={moneyMode === 'billing'}
+                onClick={() => setMoneyMode('billing')}
+                type="button"
               >
-                <h3 className="span-two">Add service account</h3>
-                <label>
-                  Service number
-                  <input name="accountNumber" required />
-                </label>
-                <label>
-                  Plan
-                  <select name="planId">
-                    {references.plans
-                      .filter((item) => item.isActive)
-                      .map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} — {money(item.priceCentavos)}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label>
-                  Installation address
-                  <select name="installationAddressId">
-                    {profile.addresses.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}: {item.addressLine}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Collector
-                  <select name="assignedCollectorId">
-                    <option value="">Unassigned</option>
-                    {references.collectors.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Billing day
-                  <input
-                    defaultValue="1"
-                    max="28"
-                    min="1"
-                    name="billingDay"
-                    type="number"
-                  />
-                </label>
-                <label>
-                  Due day
-                  <input
-                    defaultValue="15"
-                    max="28"
-                    min="1"
-                    name="dueDay"
-                    type="number"
-                  />
-                </label>
-                <label>
-                  Billing start
-                  <input
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    name="billingStartDate"
-                    required
-                    type="date"
-                  />
-                </label>
-                <button className="primary-action" type="submit">
-                  Add service
-                </button>
-              </form>
-            ) : null}
-          </section>
-        ) : null}
-        {tab === 'billing' ? (
-          <SubscriberBillingPanel mode="billing" subscriberId={profile.id} />
-        ) : null}
-        {tab === 'ledger' ? (
-          <SubscriberBillingPanel mode="ledger" subscriberId={profile.id} />
-        ) : null}
-        {tab === 'contacts' ? (
-          <section className="data-card detail-list">
-            {profile.contacts.map((item) => (
-              <div key={item.id}>
-                <strong>
-                  {item.type}
-                  {item.isPrimary ? ' · Primary' : ''}
-                </strong>
-                <span>{item.value}</span>
-              </div>
-            ))}
-            {!profile.contacts.length ? (
-              <div className="empty-state profile-empty-state">
-                <strong>No contact details</strong>
-                <span>Contact information has not been recorded.</span>
-              </div>
-            ) : null}
-          </section>
-        ) : null}
-        {tab === 'addresses' ? (
-          <section className="data-card detail-list">
-            {profile.addresses.map((item) => (
-              <div key={item.id}>
-                <strong>
-                  {item.label}
-                  {item.isPrimary ? ' · Primary' : ''}
-                </strong>
-                <span>{item.addressLine}</span>
-              </div>
-            ))}
-            {!profile.addresses.length ? (
-              <div className="empty-state profile-empty-state">
-                <strong>No addresses</strong>
-                <span>Address information has not been recorded.</span>
-              </div>
-            ) : null}
-          </section>
+                Invoices
+              </button>
+              <button
+                aria-pressed={moneyMode === 'ledger'}
+                onClick={() => setMoneyMode('ledger')}
+                type="button"
+              >
+                Ledger
+              </button>
+            </div>
+            <SubscriberBillingPanel
+              mode={moneyMode}
+              subscriberId={profile.id}
+            />
+          </div>
         ) : null}
         {tab === 'history' ? (
           <section className="data-card detail-list">

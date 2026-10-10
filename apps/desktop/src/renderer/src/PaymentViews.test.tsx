@@ -34,6 +34,7 @@ function renderPayments(
   const create = vi.fn(async () => ({ receiptNumber: 'RCT-0001' }));
   const preview = vi.fn(async () => ({
     subscriberId: subscriber.id,
+    fingerprint: 'a'.repeat(64),
     balanceCentavos: 50000,
     invoices: [
       {
@@ -91,13 +92,17 @@ function renderPayments(
 
 async function selectSubscriber(user: ReturnType<typeof userEvent.setup>) {
   await user.type(
-    screen.getByRole('searchbox', { name: 'Find subscriber' }),
+    screen.getByRole('searchbox', { name: 'Subscriber or account number' }),
     'Maria',
   );
-  await user.click(screen.getByRole('button', { name: 'Find' }));
-  await user.selectOptions(screen.getByLabelText('Subscriber'), 'subscriber-1');
-  await user.clear(screen.getByLabelText('Amount (PHP)'));
-  await user.type(screen.getByLabelText('Amount (PHP)'), '250.00');
+  await user.click(screen.getByRole('button', { name: 'Find account' }));
+  await user.click(await screen.findByRole('button', { name: /Maria Santos/ }));
+  await user.type(screen.getByLabelText('Amount received (PHP)'), '250.00');
+}
+
+async function reviewPayment(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: 'Review payment →' }));
+  await screen.findByRole('heading', { name: 'Confirm before posting' });
 }
 
 afterEach(() => {
@@ -134,63 +139,89 @@ describe('PaymentsView', () => {
     ).toBeVisible();
   });
 
-  it('requires a matching allocation preview before posting a cash payment', async () => {
+  it('does not offer posting until the allocation review is ready', async () => {
     const user = userEvent.setup();
     const { create } = renderPayments();
     await selectSubscriber(user);
-    await user.click(screen.getByRole('button', { name: 'Post payment' }));
+    expect(
+      screen.queryByRole('button', { name: /Post ₱/ }),
+    ).not.toBeInTheDocument();
     expect(create).not.toHaveBeenCalled();
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Preview the allocation before posting this payment.',
-    );
+    await reviewPayment(user);
+    expect(
+      screen.getByRole('button', { name: 'Post ₱250.00 payment' }),
+    ).toBeVisible();
   });
 
   it('keeps GCash submissions pending and does not issue a receipt', async () => {
     const user = userEvent.setup();
     const { create, submitGcash } = renderPayments();
     await selectSubscriber(user);
-    await user.selectOptions(screen.getByLabelText('Method'), 'GCASH');
-    expect(
-      screen.getByRole('region', { name: 'GCash verification steps' }),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole('button', { name: 'Preview allocation' }),
-    ).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Payment method'), 'GCASH');
     await user.type(screen.getByLabelText('Reference number'), 'GC-12345');
     await user.type(screen.getByLabelText('Sender details'), 'Maria Santos');
     const proof = new File(['synthetic proof'], 'proof.png', {
       type: 'image/png',
     });
-    await user.upload(screen.getByLabelText('GCash proof image'), proof);
+    await user.upload(screen.getByLabelText('Proof image'), proof);
+    await user.click(screen.getByRole('button', { name: 'Review payment →' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Review submission' }),
+    ).toBeVisible();
     await user.click(
       screen.getByRole('button', { name: 'Submit for verification' }),
     );
     await waitFor(() => expect(submitGcash).toHaveBeenCalled());
     expect(create).not.toHaveBeenCalled();
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'GCash proof submitted. It is not posted until approved.',
-    );
-    expect(screen.queryByText(/Receipt/)).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Submitted for verification',
+      }),
+    ).toBeVisible();
+    expect(screen.getByText(/No payment has been posted yet/)).toBeVisible();
   });
 
-  it('posts cash only after preview and reports the receipt number', async () => {
+  it('posts cash with the reviewed fingerprint and reports the receipt number', async () => {
     const user = userEvent.setup();
     const { create, preview } = renderPayments();
     await selectSubscriber(user);
+    await reviewPayment(user);
+    expect(preview).toHaveBeenCalledWith('subscriber-1', 25000);
     await user.click(
-      screen.getByRole('button', { name: 'Preview allocation' }),
+      screen.getByRole('button', { name: 'Post ₱250.00 payment' }),
     );
-    await waitFor(() =>
-      expect(preview).toHaveBeenCalledWith('subscriber-1', 25000),
-    );
-    await user.click(screen.getByRole('button', { name: 'Post payment' }));
     await waitFor(() => expect(create).toHaveBeenCalled());
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'Receipt RCT-0001 created.',
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriberId: subscriber.id,
+        amountCentavos: 25000,
+        previewFingerprint: 'a'.repeat(64),
+        idempotencyKey: expect.any(String),
+      }),
     );
+    expect(await screen.findByText(/Receipt RCT-0001 is ready/)).toBeVisible();
   });
 
-  it('opens the new posted receipt after payment succeeds', async () => {
+  it('submits one direct payment while the posting request is in flight', async () => {
+    const user = userEvent.setup();
+    const { create } = renderPayments();
+    let finish!: (value: { receiptNumber: string }) => void;
+    create.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await selectSubscriber(user);
+    await reviewPayment(user);
+    const post = screen.getByRole('button', { name: 'Post ₱250.00 payment' });
+    await user.dblClick(post);
+    expect(create).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ receiptNumber: 'RCT-0001' }));
+    expect(await screen.findByText(/Receipt RCT-0001 is ready/)).toBeVisible();
+  });
+
+  it('opens the new posted receipt after the cashier chooses View receipt', async () => {
     const user = userEvent.setup();
     renderPayments([
       {
@@ -216,18 +247,18 @@ describe('PaymentsView', () => {
       },
     ]);
     await selectSubscriber(user);
+    await reviewPayment(user);
     await user.click(
-      screen.getByRole('button', { name: 'Preview allocation' }),
+      screen.getByRole('button', { name: 'Post ₱250.00 payment' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Post payment' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'View receipt →' }),
+    );
     const receipt = await screen.findByRole('dialog', {
       name: 'Receipt detail',
     });
     expect(receipt).toHaveTextContent('RCT-0001');
     expect(screen.getByRole('button', { name: 'Print receipt' })).toBeVisible();
-    expect(
-      screen.getByRole('tab', { name: 'Payment history' }),
-    ).toHaveAttribute('aria-selected', 'true');
   });
 
   it('keeps the server-provided oldest-first allocation order and exposes excess credit', async () => {
@@ -235,6 +266,7 @@ describe('PaymentsView', () => {
     const { preview } = renderPayments();
     preview.mockResolvedValue({
       subscriberId: subscriber.id,
+      fingerprint: 'b'.repeat(64),
       balanceCentavos: 30000,
       invoices: [
         {
@@ -255,81 +287,36 @@ describe('PaymentsView', () => {
       unallocatedCreditCentavos: 5000,
     });
     await selectSubscriber(user);
-    await user.click(
-      screen.getByRole('button', { name: 'Preview allocation' }),
-    );
-    const previewPanel = await screen.findByRole('region', {
-      name: 'Allocation preview',
-    });
-    const older = within(previewPanel).getByText('INV-OLD');
-    const newer = within(previewPanel).getByText('INV-NEW');
+    await reviewPayment(user);
+    const review = screen.getByRole('region', { name: 'Receive payment' });
+    const older = within(review).getByText('INV-OLD');
+    const newer = within(review).getByText('INV-NEW');
     expect(
       older.compareDocumentPosition(newer) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(previewPanel).toHaveTextContent('Remaining subscriber credit');
-    expect(previewPanel).toHaveTextContent('₱50.00');
+    expect(review).toHaveTextContent('Remaining account credit');
+    expect(review).toHaveTextContent('₱50.00');
   });
 
-  it('discards a late allocation preview after the payment amount changes', async () => {
+  it('returns to details when the server reports a changed invoice balance', async () => {
     const user = userEvent.setup();
-    let resolvePreview!: (result: {
-      subscriberId: string;
-      balanceCentavos: number;
-      invoices: Array<{
-        id: string;
-        invoiceNumber: string;
-        dueDate: string;
-        balanceCentavos: number;
-        proposedCentavos: number;
-      }>;
-      unallocatedCreditCentavos: number;
-    }) => void;
-    const pendingPreview = new Promise<{
-      subscriberId: string;
-      balanceCentavos: number;
-      invoices: Array<{
-        id: string;
-        invoiceNumber: string;
-        dueDate: string;
-        balanceCentavos: number;
-        proposedCentavos: number;
-      }>;
-      unallocatedCreditCentavos: number;
-    }>((resolve) => {
-      resolvePreview = resolve;
-    });
-    const { preview } = renderPayments();
-    preview.mockImplementation(() => pendingPreview);
+    const { create } = renderPayments();
+    create.mockRejectedValueOnce(
+      new Error(
+        'The invoice balance changed. Review the allocation again before posting.',
+      ),
+    );
     await selectSubscriber(user);
+    await reviewPayment(user);
     await user.click(
-      screen.getByRole('button', { name: 'Preview allocation' }),
+      screen.getByRole('button', { name: 'Post ₱250.00 payment' }),
     );
-    await user.clear(screen.getByLabelText('Amount (PHP)'));
-    await user.type(screen.getByLabelText('Amount (PHP)'), '300.00');
-    await act(async () => {
-      resolvePreview({
-        subscriberId: subscriber.id,
-        balanceCentavos: 50000,
-        invoices: [
-          {
-            id: 'invoice-old',
-            invoiceNumber: 'INV-OLD',
-            dueDate: '2026-09-15',
-            balanceCentavos: 50000,
-            proposedCentavos: 25000,
-          },
-        ],
-        unallocatedCreditCentavos: 0,
-      });
-      await pendingPreview;
-    });
-    const previewPanel = screen.getByRole('region', {
-      name: 'Allocation preview',
-    });
-    expect(previewPanel).toHaveTextContent(
-      'Find a subscriber, enter an amount',
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'invoice balance changed',
     );
-    expect(previewPanel).not.toHaveTextContent('INV-OLD');
+    expect(
+      screen.getByRole('heading', { name: 'How much was received?' }),
+    ).toBeVisible();
   });
 
   it('shows rejection history and keeps reversal unavailable to a read-only cashier', async () => {

@@ -38,7 +38,7 @@ try {
   await page.getByRole('button', { name: 'Sign in' }).click();
   try {
     await page
-      .getByRole('heading', { name: 'Home' })
+      .getByRole('heading', { name: 'Today' })
       .waitFor({ timeout: 15_000 });
   } catch (error) {
     await page.screenshot({
@@ -81,7 +81,7 @@ try {
   const collapsedHome = page.locator(
     '.sidebar-collapsed .nav-item[aria-current="page"]',
   );
-  if ((await collapsedHome.getAttribute('aria-label')) !== 'Home')
+  if ((await collapsedHome.getAttribute('aria-label')) !== 'Today')
     throw new Error('The collapsed sidebar lost its active Home destination.');
   await page.screenshot({
     path: 'output/playwright/bcis-seeded-shell-collapsed.png',
@@ -111,6 +111,89 @@ try {
   await page.keyboard.press('Escape');
   await navigationDrawer.waitFor({ state: 'detached' });
   await page.setViewportSize({ width: 1440, height: 900 });
+
+  await page.getByRole('button', { name: 'Subscribers', exact: true }).click();
+  await page.getByRole('heading', { name: 'Find a subscriber' }).waitFor();
+  const firstSubscriber = page
+    .getByRole('button', { name: /Open profile for/ })
+    .first();
+  await firstSubscriber.waitFor();
+  await page.screenshot({
+    path: 'output/playwright/bcis-subscriber-cards.png',
+  });
+  await firstSubscriber.click();
+  await page.getByRole('tab', { name: 'Overview' }).waitFor();
+  await page.getByRole('tab', { name: /Services/ }).click();
+  await page.getByRole('button', { name: 'Add service' }).click();
+  await page.getByRole('heading', { name: 'Add a service' }).waitFor();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'output/playwright/bcis-service-wizard.png' });
+  await page.setViewportSize({ width: 960, height: 640 });
+  if (
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.window.innerWidth + 1,
+    )
+  )
+    throw new Error('Service wizard overflows horizontally at 960×640.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByLabel('Service number').fill('SVC-UNSAVED');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await page.getByRole('button', { name: '← Back to subscribers' }).click();
+  await page.getByRole('button', { name: 'Register subscriber' }).click();
+  await page.getByRole('heading', { name: 'Register an account' }).waitFor();
+  await page.waitForTimeout(350);
+  await page.screenshot({
+    path: 'output/playwright/bcis-subscriber-wizard.png',
+  });
+  await page.setViewportSize({ width: 960, height: 640 });
+  if (
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.window.innerWidth + 1,
+    )
+  )
+    throw new Error('Subscriber wizard overflows horizontally at 960×640.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByLabel('Subscriber number').fill('SUB-UNSAVED');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.screenshot({ path: 'output/playwright/bcis-subscriber-exit.png' });
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+
+  await page.getByRole('button', { name: 'Payments' }).click();
+  await page.getByRole('heading', { name: 'Receive a payment' }).waitFor();
+  await page
+    .getByRole('searchbox', { name: 'Subscriber or account number' })
+    .fill('Maria');
+  await page.getByRole('button', { name: 'Find account' }).click();
+  await page
+    .getByRole('button', { name: /Maria Santos/ })
+    .first()
+    .click();
+  await page.getByLabel('Amount received (PHP)').fill('1.00');
+  await page.getByRole('button', { name: 'Review payment →' }).click();
+  await page.getByRole('heading', { name: 'Confirm before posting' }).waitFor();
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: 'output/playwright/bcis-payment-review.png' });
+  await page.setViewportSize({ width: 960, height: 640 });
+  if (
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.window.innerWidth + 1,
+    )
+  )
+    throw new Error(
+      'Payment review overflows horizontally at the minimum desktop size.',
+    );
+  await page.screenshot({
+    path: 'output/playwright/bcis-payment-review-minimum-size.png',
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Edit details' }).click();
 
   await page.getByRole('button', { name: 'Plans' }).click();
   await page.getByRole('heading', { name: 'Service plans' }).waitFor();
@@ -343,7 +426,7 @@ try {
   const roleChecks = [
     {
       username: 'cashier',
-      visible: ['Home', 'Subscribers', 'Plans', 'Billing', 'Payments'],
+      visible: ['Today', 'Subscribers', 'Plans', 'Billing', 'Payments'],
       hidden: [
         'Collections',
         'Receivables',
@@ -355,7 +438,7 @@ try {
     {
       username: 'auditor',
       visible: [
-        'Home',
+        'Today',
         'Billing',
         'Payments',
         'Collections',
@@ -366,7 +449,7 @@ try {
     },
     {
       username: 'technician',
-      visible: ['Home', 'Subscribers', 'Plans', 'Services'],
+      visible: ['Today', 'Subscribers', 'Plans', 'Services'],
       hidden: [
         'Billing',
         'Payments',
@@ -385,7 +468,7 @@ try {
       .locator('input[name="password"]')
       .fill(process.env.SEED_OWNER_PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await page.getByRole('heading', { name: 'Home' }).waitFor();
+    await page.getByRole('heading', { name: 'Today' }).waitFor();
     for (const destination of role.visible) {
       if (
         !(await page

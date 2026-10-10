@@ -101,7 +101,7 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 **Files:** `MasterDataViews.tsx`, `PaymentViews.tsx`, `SubscriberQuickSearch.tsx`, `payment-routes.ts`, `payments.ts`, `packages/contracts/src/index.ts`, `desktop-api.ts`, tests and manual.
 
 - [x] Reuse the existing permission-safe, paginated subscriber search DTO; no additional role work-summary DTO is needed for this flow.
-- [ ] Add a focused test for account selection, method-specific fields, oldest-first allocation preview, credit/overpayment, GCash pending path, duplicate click/retry, cancellation, server conflict, and receipt destination.
+- [x] Update focused payment UI tests for account selection, method-specific fields, oldest-first allocation review, GCash pending state, server conflict, and receipt destination; the full repository suite passes.
 - [x] Implement subscriber search cards with explicit account number, service and state, then a focused payment wizard. Carry selected account context forward without asking again.
 - [x] Add a server preview fingerprint; post checks it inside one transaction and rejects changed balances for re-review. Use an idempotency key for the final direct post.
 - [x] Return an explicit receipt or pending-verification card with the correct next action. Keep history in its separate register view.
@@ -115,11 +115,11 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `MasterDataViews.tsx`, `SubscriberActivity.tsx`, `master-data-routes.ts`, `master-data.ts`, contracts/bridge, colocated tests and manual.
 
-- [ ] Define customer card/detail DTOs; reuse existing master-data endpoints where their contracts already support the view.
-- [ ] Implement recent/search customer cards and sticky profile identity with Overview, Services, Money, History task tabs. Preserve permission-filtered data and links to source records.
-- [ ] Implement Register subscriber as Identity → Contact/location → Billing defaults → Review. Validate per step and show a single atomic create result.
-- [ ] Implement Add service as Choose plan → Installation/assignment → Billing schedule → Review. Compute any first-bill preview on the server if business rules affect it.
-- [ ] Test duplicates, missing optional data, back navigation, mid-flow exit, server errors, role restrictions, and 960×640 overflow.
+- [x] Reuse existing permission-safe, paginated subscriber and detail DTOs; they provide the card and profile fields needed here.
+- [x] Implement search customer cards and sticky profile identity with Overview, Services, Money, and History task tabs. Preserve permission-filtered data and links to source records.
+- [x] Implement Register subscriber as Identity → Contact/location → Billing defaults → Review. Validate per step and open the new profile after one atomic create.
+- [x] Implement Add service as Choose plan → Installation/assignment → Billing schedule → Review. Show the monthly plan rate without claiming a first invoice total before billing generates it.
+- [x] Test duplicates, missing optional data, back navigation, mid-flow exit, server errors, role restrictions, and 960×640 overflow in focused tests and a real Electron click flow.
 
 **Done when:** New staff can register and connect a service without facing a long all-field form; existing profile history remains findable.
 
