@@ -34,14 +34,14 @@ The navigation leads to tasks. Each destination opens a **work desk**: a short h
 
 ### Navigation and role entry
 
-| Destination | First view | Secondary destinations |
-| --- | --- | --- |
-| Today | Role-specific priorities and one main action | Activity and relevant trends |
-| Customers | Search and recent subscriber cards | Subscribers, services, plan catalog |
-| Money | Task cards for billing and payments | Billing runs, invoices, receipts, payment history |
-| Field work | Collection batches and follow-up cases | Routes, remittance, receivables, service controls |
-| Insights | Question-led reports and audit | Exports, correction history, activity |
-| System | Operational health | Backup/recovery; users/access only after real API exists |
+| Destination | First view                                   | Secondary destinations                                   |
+| ----------- | -------------------------------------------- | -------------------------------------------------------- |
+| Today       | Role-specific priorities and one main action | Activity and relevant trends                             |
+| Customers   | Search and recent subscriber cards           | Subscribers, services, plan catalog                      |
+| Money       | Task cards for billing and payments          | Billing runs, invoices, receipts, payment history        |
+| Field work  | Collection batches and follow-up cases       | Routes, remittance, receivables, service controls        |
+| Insights    | Question-led reports and audit               | Exports, correction history, activity                    |
+| System      | Operational health                           | Backup/recovery; users/access only after real API exists |
 
 Sidebar width: 248 px expanded, 68 px rail. The **collapse/expand button lives in the sidebar header**, next to BCIS identity, not in the top bar. Expanded groups show icon + label + optional count. Collapsed rail keeps current item visible with a 3 px accent bar, tinted active background and accessible tooltip; group menus can open anchored flyouts. The choice persists per device. At the 960 × 640 desktop minimum, avoid hiding main controls; at narrow widths use a scrim-backed drawer with an in-drawer close control. Role permissions remove unavailable destinations; an empty group disappears. Never show a dead link to an unbuilt feature.
 
@@ -60,17 +60,17 @@ The top bar is for search, context, and account controls. Search can return subs
 
 **Personality:** assured utility for a billing and collection desk. Keep the approved login navy, but make the workspace warmer and more legible through contrast, tactile layering, and restrained blue/cyan cues. Avoid an all-grey grid or an equal-weight “SaaS card kit.”
 
-| Token | Proposed value | Use |
-| --- | --- | --- |
-| Ink | `#10233F` | Primary text |
-| Sidebar | `#0E2441` | Stable navigation anchor |
-| Canvas | `#F1F5FA` | Cool workspace background |
-| Surface | `#FFFFFF` | Cards, sheets, menus |
-| Action | `#1959D1` | Primary CTA and active navigation |
-| Action hover | `#1249AF` | Stronger interactive state |
-| Signal cyan | `#21A6B8` | Selected data and chart accent, sparingly |
-| Warning | `#A95812` | Follow-up attention, with icon/text |
-| Danger | `#B42332` | Reversal/destructive confirmation, with text |
+| Token        | Proposed value | Use                                          |
+| ------------ | -------------- | -------------------------------------------- |
+| Ink          | `#10233F`      | Primary text                                 |
+| Sidebar      | `#0E2441`      | Stable navigation anchor                     |
+| Canvas       | `#F1F5FA`      | Cool workspace background                    |
+| Surface      | `#FFFFFF`      | Cards, sheets, menus                         |
+| Action       | `#1959D1`      | Primary CTA and active navigation            |
+| Action hover | `#1249AF`      | Stronger interactive state                   |
+| Signal cyan  | `#21A6B8`      | Selected data and chart accent, sparingly    |
+| Warning      | `#A95812`      | Follow-up attention, with icon/text          |
+| Danger       | `#B42332`      | Reversal/destructive confirmation, with text |
 
 These are candidate tokens; final paired contrast is checked in implementation. Use Segoe UI Variable/Segoe UI with a tabular-numeral setting for currency and dates. Titles 30–36 px, section titles 20–24 px, body 14–16 px, supporting text at least 12 px with sufficient contrast. Avoid all-caps eyebrow labels everywhere. Keep line length around 65–75 characters in explanatory blocks.
 

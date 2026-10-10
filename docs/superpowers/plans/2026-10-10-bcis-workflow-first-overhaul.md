@@ -31,17 +31,17 @@
 
 ## File map and work boundaries
 
-| Responsibility | Existing entry point | Planned location/change |
-| --- | --- | --- |
-| Shell/navigation | `apps/desktop/src/renderer/src/App.tsx`, `navigation.ts`, `styles.css` | Split shell and common UI into focused files under `apps/desktop/src/renderer/src/ui/` as first slice needs them; avoid one giant CSS file growing indefinitely. |
-| Customer work | `MasterDataViews.tsx`, `SubscriberActivity.tsx`, `SubscriberQuickSearch.tsx` | Extract `features/customers/` components and wizard state by task while keeping old view behind route switch. |
-| Billing/payment | `BillingViews.tsx`, `PaymentViews.tsx` | Extract `features/money/` work desks and wizards. |
-| Field work | `CollectionsView.tsx`, `ReceivablesView.tsx` | Extract `features/field-work/` cards, detail sheets and cases. |
-| Insights/system | `ReportingViews.tsx`, `OperationsView.tsx` | Extract question-led reports and guarded recovery flow. |
-| Shared contracts | `packages/contracts/src/index.ts`, `apps/desktop/src/shared/desktop-api.ts` | Add bounded DTOs only as endpoints are implemented; keep old contracts during transition. |
-| API | `apps/api/src/*-routes.ts`, domain services | Add preview/summary/search and idempotent commit where required. Business rules stay in services. |
-| Data | `packages/database/src/schema.ts`, migrations | Add only persisted workflow state proved necessary; avoid a speculative draft table. |
-| Docs | `docs/manual/USER_MANUAL.md`, API/architecture docs | Update after each shipped journey and record route/contract changes. |
+| Responsibility   | Existing entry point                                                         | Planned location/change                                                                                                                                          |
+| ---------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shell/navigation | `apps/desktop/src/renderer/src/App.tsx`, `navigation.ts`, `styles.css`       | Split shell and common UI into focused files under `apps/desktop/src/renderer/src/ui/` as first slice needs them; avoid one giant CSS file growing indefinitely. |
+| Customer work    | `MasterDataViews.tsx`, `SubscriberActivity.tsx`, `SubscriberQuickSearch.tsx` | Extract `features/customers/` components and wizard state by task while keeping old view behind route switch.                                                    |
+| Billing/payment  | `BillingViews.tsx`, `PaymentViews.tsx`                                       | Extract `features/money/` work desks and wizards.                                                                                                                |
+| Field work       | `CollectionsView.tsx`, `ReceivablesView.tsx`                                 | Extract `features/field-work/` cards, detail sheets and cases.                                                                                                   |
+| Insights/system  | `ReportingViews.tsx`, `OperationsView.tsx`                                   | Extract question-led reports and guarded recovery flow.                                                                                                          |
+| Shared contracts | `packages/contracts/src/index.ts`, `apps/desktop/src/shared/desktop-api.ts`  | Add bounded DTOs only as endpoints are implemented; keep old contracts during transition.                                                                        |
+| API              | `apps/api/src/*-routes.ts`, domain services                                  | Add preview/summary/search and idempotent commit where required. Business rules stay in services.                                                                |
+| Data             | `packages/database/src/schema.ts`, migrations                                | Add only persisted workflow state proved necessary; avoid a speculative draft table.                                                                             |
+| Docs             | `docs/manual/USER_MANUAL.md`, API/architecture docs                          | Update after each shipped journey and record route/contract changes.                                                                                             |
 
 Use the existing names until a slice actually extracts a component. The paths under `features/` are planned destinations, not files that already exist.
 
@@ -49,9 +49,9 @@ Use the existing names until a slice actually extracts a component. The paths un
 
 ### Task 0.1: Preserve a reviewable baseline
 
-- [ ] Audit `.gitignore` and repository contents for credentials, dumps, generated output, and real records.
-- [ ] Initialize Git and create a private GitHub repository if none exists; push a baseline commit and `pre-workflow-overhaul` tag. Record the URL and restore command in planning docs only after the push succeeds.
-- [ ] Inventory current API routes, roles, current viewport behavior, and the 13 user screenshots. Label assumptions in the spec rather than promoting screenshot data to requirements.
+- [x] Audit `.gitignore` and repository contents for credentials, dumps, generated output, and real records. Local GCash attachment images and generated captures were excluded from the baseline.
+- [x] Initialize Git and create a private GitHub repository. Baseline commit `4a81a17` and tag `pre-workflow-overhaul-2026-10-10` are pushed to [the private BCIS repository](https://github.com/Valhaimerd/BCIS-Subscription-Billing-System). To inspect this immutable starting point later, run `git switch --detach pre-workflow-overhaul-2026-10-10` in a separate checkout; do not reset a working implementation branch.
+- [x] Inventory current API route families, role rules, prior plans/manual, and the 13 user screenshots. Label untested staff assumptions in the spec rather than promoting screenshot data to requirements.
 
 **Done when:** Baseline is available on GitHub, with source/docs included and secrets/data excluded. This task may be completed during planning; no UI implementation is implied.
 
