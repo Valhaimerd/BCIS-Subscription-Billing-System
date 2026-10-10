@@ -57,6 +57,13 @@
       "when": 1791332662861,
       "tag": "0007_first_wrecker",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791616699247,
+      "tag": "0008_dapper_magik",
+      "breakpoints": true
     }
   ]
 }

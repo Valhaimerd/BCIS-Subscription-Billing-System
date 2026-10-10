@@ -89,6 +89,7 @@ export class PaymentService {
     );
     return {
       subscriberId,
+      fingerprint: this.fingerprint(subscriberId, amountCentavos, open),
       balanceCentavos: open.reduce(
         (total, invoice) => total + invoice.balanceCentavos,
         0,
@@ -101,6 +102,8 @@ export class PaymentService {
   async create(
     input: {
       subscriberId: string;
+      idempotencyKey?: string | undefined;
+      previewFingerprint?: string | undefined;
       batchAccountId?: string | undefined;
       amountCentavos: number;
       method: 'CASH' | 'GCASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
@@ -112,6 +115,14 @@ export class PaymentService {
   ) {
     if (input.method === 'GCASH')
       throw new PaymentError(409, 'GCash payments require proof verification.');
+    if (input.idempotencyKey) {
+      const existing = await this.existingRequest(
+        input.idempotencyKey,
+        input,
+        actorUserId,
+      );
+      if (existing) return existing;
+    }
     try {
       return await this.db.transaction(async (transaction) => {
         await this.lockCollectionLink(
@@ -119,10 +130,32 @@ export class PaymentService {
           input.subscriberId,
           transaction,
         );
+        await transaction
+          .select({ id: subscribers.id })
+          .from(subscribers)
+          .where(eq(subscribers.id, input.subscriberId))
+          .for('update');
+        if (input.previewFingerprint) {
+          const open = await this.openInvoices(input.subscriberId, transaction);
+          if (
+            this.fingerprint(input.subscriberId, input.amountCentavos, open) !==
+            input.previewFingerprint
+          )
+            throw new PaymentError(
+              409,
+              'The invoice balance changed. Review the allocation again before posting.',
+            );
+        }
         const [payment] = await transaction
           .insert(payments)
           .values({
-            ...input,
+            subscriberId: input.subscriberId,
+            batchAccountId: input.batchAccountId,
+            amountCentavos: input.amountCentavos,
+            method: input.method,
+            referenceNumber: input.referenceNumber,
+            notes: input.notes,
+            idempotencyKey: input.idempotencyKey,
             status: 'POSTED',
             paymentDate: input.paymentDate
               ? new Date(input.paymentDate)
@@ -134,6 +167,14 @@ export class PaymentService {
         return this.post(payment, actorUserId, transaction);
       });
     } catch (error) {
+      if (isUniqueViolation(error) && input.idempotencyKey) {
+        const existing = await this.existingRequest(
+          input.idempotencyKey,
+          input,
+          actorUserId,
+        );
+        if (existing) return existing;
+      }
       if (isUniqueViolation(error))
         throw new PaymentError(
           409,
@@ -141,6 +182,82 @@ export class PaymentService {
         );
       throw error;
     }
+  }
+
+  private fingerprint(
+    subscriberId: string,
+    amountCentavos: number,
+    open: Array<{
+      id: string;
+      invoiceNumber: string;
+      dueDate: string;
+      balanceCentavos: number;
+    }>,
+  ) {
+    return createHash('sha256')
+      .update(
+        JSON.stringify({
+          subscriberId,
+          amountCentavos,
+          invoices: open.map(
+            ({ id, invoiceNumber, dueDate, balanceCentavos }) => ({
+              id,
+              invoiceNumber,
+              dueDate,
+              balanceCentavos,
+            }),
+          ),
+        }),
+      )
+      .digest('hex');
+  }
+
+  private async existingRequest(
+    key: string,
+    input: {
+      subscriberId: string;
+      amountCentavos: number;
+      method: 'CASH' | 'GCASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER';
+      referenceNumber?: string | undefined;
+    },
+    actorUserId: string,
+  ) {
+    const [row] = await this.db
+      .select({
+        id: payments.id,
+        subscriberId: payments.subscriberId,
+        method: payments.method,
+        referenceNumber: payments.referenceNumber,
+        postedByUserId: payments.postedByUserId,
+        amountCentavos: payments.amountCentavos,
+        receiptNumber: receipts.receiptNumber,
+      })
+      .from(payments)
+      .innerJoin(receipts, eq(receipts.paymentId, payments.id))
+      .where(eq(payments.idempotencyKey, key));
+    if (!row) return null;
+    if (
+      row.postedByUserId !== actorUserId ||
+      row.subscriberId !== input.subscriberId ||
+      row.amountCentavos !== input.amountCentavos ||
+      row.method !== input.method ||
+      row.referenceNumber !== (input.referenceNumber ?? null)
+    )
+      throw new PaymentError(409, 'This payment request key was already used.');
+    const allocations = await this.db
+      .select({ amountCentavos: paymentAllocations.amountCentavos })
+      .from(paymentAllocations)
+      .where(eq(paymentAllocations.paymentId, row.id));
+    const allocatedCentavos = allocations.reduce(
+      (total, item) => total + item.amountCentavos,
+      0,
+    );
+    return {
+      id: row.id,
+      receiptNumber: row.receiptNumber,
+      allocatedCentavos,
+      creditCentavos: row.amountCentavos - allocatedCentavos,
+    };
   }
 
   async submitGcash(
@@ -430,6 +547,11 @@ export class PaymentService {
     actorUserId: string,
     transaction: Transaction,
   ) {
+    await transaction
+      .select({ id: subscribers.id })
+      .from(subscribers)
+      .where(eq(subscribers.id, payment.subscriberId))
+      .for('update');
     const sequence = await transaction.execute<{ value: string }>(
       sql`select nextval('receipt_number_sequence')::text as value`,
     );

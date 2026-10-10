@@ -412,6 +412,12 @@ export const paymentStatuses = [
 export const paymentStatusSchema = z.enum(paymentStatuses);
 export const createPaymentSchema = z.object({
   subscriberId: z.uuid(),
+  idempotencyKey: z.uuid().optional(),
+  previewFingerprint: z
+    .string()
+    .length(64)
+    .regex(/^[a-f0-9]+$/)
+    .optional(),
   batchAccountId: z.uuid().optional(),
   amountCentavos: z.number().int().positive().safe(),
   method: paymentMethodSchema,
@@ -471,6 +477,7 @@ export interface PaymentSummaryDto {
 
 export interface PaymentPreviewDto {
   subscriberId: string;
+  fingerprint: string;
   balanceCentavos: number;
   invoices: Array<{
     id: string;

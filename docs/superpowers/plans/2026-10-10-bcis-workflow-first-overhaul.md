@@ -100,11 +100,11 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `MasterDataViews.tsx`, `PaymentViews.tsx`, `SubscriberQuickSearch.tsx`, `payment-routes.ts`, `payments.ts`, `packages/contracts/src/index.ts`, `desktop-api.ts`, tests and manual.
 
-- [ ] Define the exact permission-safe, paginated subscriber search DTO and a role work-summary DTO only if existing API cannot provide the needed bounded results.
+- [x] Reuse the existing permission-safe, paginated subscriber search DTO; no additional role work-summary DTO is needed for this flow.
 - [ ] Add a focused test for account selection, method-specific fields, oldest-first allocation preview, credit/overpayment, GCash pending path, duplicate click/retry, cancellation, server conflict, and receipt destination.
-- [ ] Implement subscriber search cards with explicit account number, service and state, then a four-step payment wizard. Carry selected account context forward without asking again.
-- [ ] If current allocation preview is insufficient, add server preview with a revision/fingerprint; post recalculates inside one transaction and rejects changed facts for re-review. Use an idempotency key for the final post.
-- [ ] Return an explicit receipt or pending-verification card with correct next action. Place history in a separate card/register view.
+- [x] Implement subscriber search cards with explicit account number, service and state, then a focused payment wizard. Carry selected account context forward without asking again.
+- [x] Add a server preview fingerprint; post checks it inside one transaction and rejects changed balances for re-review. Use an idempotency key for the final direct post.
+- [x] Return an explicit receipt or pending-verification card with the correct next action. Keep history in its separate register view.
 - [ ] Run focused API/UI tests, a real Electron click flow, and role checks for cashier and auditor. Compare task completion with the baseline observation.
 
 **Done when:** Cashier can find a subscriber, understand allocation, post once, and reach the right receipt/status without scanning a ledger table.

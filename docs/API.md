@@ -111,6 +111,8 @@ All endpoints require a Bearer session. History and proof reads require `payment
 
 Payment amounts are positive safe integer centavos. Direct `GCASH` posting is rejected: staff must submit evidence and an authorized user must approve it. Proofs are JPEG, PNG, or WebP, at most 5 MB, stored under a server-generated path, and checksum-verified when read. Posted payments, allocations, receipts, proofs, and reversals have no destructive edit/delete API. Subscriber search also resolves invoice numbers, receipt numbers, and GCash references.
 
+The allocation preview now returns a `fingerprint` for the account's open invoice balances and requested amount. A direct payment may send this as `previewFingerprint`; the server checks it inside the posting transaction and returns `409` if balances changed, so the cashier can review again. A direct payment may also send a UUID `idempotencyKey`. Repeating the same request with that key returns the original receipt; reusing it for another payment returns `409`. Existing clients may omit both fields. The nullable key has a PostgreSQL unique index; deploy migration `0008_dapper_magik.sql` before using the new cashier flow.
+
 ## Collection batches and reconciliation
 
 All endpoints require a Bearer session. Reads require `collection.view`; generation, transitions, remittance, reconciliation, and closure require `collection.reconcile`.

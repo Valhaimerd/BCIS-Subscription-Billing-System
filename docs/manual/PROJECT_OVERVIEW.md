@@ -13,6 +13,7 @@ The system replaces disconnected spreadsheets or manual records with one authori
 - Maintain subscribers, service accounts, plans, collection areas, and collectors.
 - Generate monthly invoices without billing the same service twice.
 - Record exact, partial, advance, Cash, and GCash payments.
+- The cashier receives payments through account search cards, a focused details step, an oldest-first allocation review, and a distinct receipt or pending-verification result. A changed balance requires another review; retries use one payment request key.
 - Allocate payments to the oldest unpaid invoices and preserve subscriber credit.
 - Issue unique receipts and correct mistakes through traceable reversal instead of deletion.
 - Prepare collector route sheets, record field collections, and expose shortages or overages.

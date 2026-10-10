@@ -812,6 +812,7 @@ export const payments = pgTable(
   'payments',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    idempotencyKey: uuid('idempotency_key'),
     subscriberId: uuid('subscriber_id')
       .notNull()
       .references(() => subscribers.id),
@@ -843,6 +844,7 @@ export const payments = pgTable(
     index('payments_status_index').on(table.status),
     index('payments_status_date_index').on(table.status, table.paymentDate),
     index('payments_reference_index').on(table.referenceNumber),
+    uniqueIndex('payments_idempotency_key_unique').on(table.idempotencyKey),
     uniqueIndex('payments_batch_account_unique')
       .on(table.batchAccountId)
       .where(
