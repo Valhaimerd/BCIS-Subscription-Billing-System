@@ -267,7 +267,7 @@ export function DashboardView({
                   {canViewCollections ? (
                     <WorkCard
                       action="See collector detail"
-                    context={`${dashboard.collectors.length} collector ${dashboard.collectors.length === 1 ? 'summary' : 'summaries'} shown for this period`}
+                      context={`${dashboard.collectors.length} collector ${dashboard.collectors.length === 1 ? 'summary' : 'summaries'} shown for this period`}
                       icon={Map}
                       onClick={() => setActiveDetail('collections')}
                       title="Field collections"
