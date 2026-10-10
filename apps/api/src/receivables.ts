@@ -69,13 +69,33 @@ interface ReceivableQuery {
   planId?: string | undefined;
   serviceTypeCode?: 'INTERNET' | 'CABLE' | 'COMBO' | undefined;
   agingBucket?: AgingBucket | undefined;
+  queue?: 'ACT_TODAY' | 'DUE_SOON' | 'ALL' | undefined;
+}
+
+function caseQueue(row: ReceivableDetailDto, asOf: string) {
+  if (
+    (row.serviceStatus === 'SUSPENDED' && row.totalArrearsCentavos === 0) ||
+    row.followUp ||
+    row.suspensionCandidate
+  )
+    return 'ACT_TODAY';
+  const daysUntilDue = Math.round(
+    (Date.parse(`${row.oldestDueDate}T00:00:00Z`) -
+      Date.parse(`${asOf}T00:00:00Z`)) /
+      86_400_000,
+  );
+  return daysUntilDue <= 7 ? 'DUE_SOON' : 'ALL';
 }
 
 export class ReceivableService {
   constructor(private readonly db: Database) {}
 
-  async summary(asOf: string): Promise<ReceivableSummaryDto> {
-    const rows = await this.derive({ asOf }, this.db);
+  async summary(
+    input: string | ReceivableQuery,
+  ): Promise<ReceivableSummaryDto> {
+    const query = typeof input === 'string' ? { asOf: input } : input;
+    const { asOf } = query;
+    const rows = await this.derive(query, this.db);
     const buckets: ReceivableSummaryDto['buckets'] = {
       CURRENT: 0,
       '1_30': 0,
@@ -83,10 +103,22 @@ export class ReceivableService {
       '61_90': 0,
       '90_PLUS': 0,
     };
+    const bucketCounts: ReceivableSummaryDto['bucketCounts'] = {
+      CURRENT: 0,
+      '1_30': 0,
+      '31_60': 0,
+      '61_90': 0,
+      '90_PLUS': 0,
+    };
+    const caseCounts = { actToday: 0, dueSoon: 0, all: rows.length };
     for (const row of rows) {
       for (const bucket of Object.keys(buckets) as AgingBucket[]) {
         buckets[bucket] += row.agingCentavos[bucket];
+        if (row.agingCentavos[bucket] > 0) bucketCounts[bucket] += 1;
       }
+      const queue = caseQueue(row, asOf);
+      if (queue === 'ACT_TODAY') caseCounts.actToday += 1;
+      if (queue === 'DUE_SOON') caseCounts.dueSoon += 1;
     }
     const currentCentavos = rows.reduce(
       (total, row) => total + row.currentCentavos,
@@ -110,13 +142,20 @@ export class ReceivableService {
       suspensionCandidates: rows.filter((row) => row.suspensionCandidate)
         .length,
       buckets,
+      bucketCounts,
+      caseCounts,
     };
   }
 
   async list(
     query: ReceivableQuery & { page: number; pageSize: number },
   ): Promise<Paginated<ReceivableDetailDto>> {
-    const rows = await this.derive(query, this.db);
+    const rows = (await this.derive(query, this.db)).filter(
+      (row) =>
+        !query.queue ||
+        query.queue === 'ALL' ||
+        caseQueue(row, query.asOf) === query.queue,
+    );
     return {
       items: rows.slice(
         (query.page - 1) * query.pageSize,
@@ -539,74 +578,180 @@ export class ReceivableService {
       grouped.set(invoice.serviceAccountId, rows);
     }
     const normalizedQuery = query.q?.trim().toLowerCase() ?? '';
-    return orderReceivablesForFollowUp(
-      [...grouped.values()]
-        .map((invoiceRows): ReceivableDetailDto => {
-          const first = invoiceRows[0]!;
-          const overdue = invoiceRows.filter(
-            (invoice) => daysPastDue(invoice.dueDate, query.asOf) > 0,
-          );
-          const oldest = overdue[0] ?? first;
-          const currentCentavos = invoiceRows
-            .filter((invoice) => daysPastDue(invoice.dueDate, query.asOf) === 0)
-            .reduce((total, invoice) => total + invoice.balanceCentavos, 0);
-          const totalArrearsCentavos = overdue.reduce(
-            (total, invoice) => total + invoice.balanceCentavos,
-            0,
-          );
-          const suspensionCandidate =
+    const settledSuspended =
+      query.asOf ===
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(new Date())
+        ? await database
+            .select({
+              serviceAccountId: serviceAccounts.id,
+              serviceAccountNumber: serviceAccounts.accountNumber,
+              subscriberId: subscribers.id,
+              subscriberAccountNumber: subscribers.accountNumber,
+              subscriberName: subscribers.fullName,
+              planId: servicePlans.id,
+              planName: servicePlans.name,
+              serviceTypeCode: serviceTypes.code,
+              collectionAreaId: collectionAreas.id,
+              collectionAreaName: collectionAreas.name,
+              collectorId: collectors.id,
+              collectorName: collectors.fullName,
+              lastPaymentAt: sql<Date | null>`(select max(p.payment_date) from payments p where p.subscriber_id = ${subscribers.id} and p.status = 'POSTED')`,
+            })
+            .from(serviceAccounts)
+            .innerJoin(
+              subscribers,
+              eq(subscribers.id, serviceAccounts.subscriberId),
+            )
+            .innerJoin(
+              servicePlans,
+              eq(servicePlans.id, serviceAccounts.planId),
+            )
+            .innerJoin(
+              serviceTypes,
+              eq(serviceTypes.id, servicePlans.serviceTypeId),
+            )
+            .leftJoin(
+              collectionAreas,
+              eq(collectionAreas.id, subscribers.collectionAreaId),
+            )
+            .leftJoin(
+              collectors,
+              sql`${collectors.id} = coalesce(${serviceAccounts.assignedCollectorId}, ${subscribers.assignedCollectorId})`,
+            )
+            .where(eq(serviceAccounts.status, 'SUSPENDED'))
+        : [];
+    const outstandingRows = [...grouped.values()]
+      .map((invoiceRows): ReceivableDetailDto => {
+        const first = invoiceRows[0]!;
+        const overdue = invoiceRows.filter(
+          (invoice) => daysPastDue(invoice.dueDate, query.asOf) > 0,
+        );
+        const oldest = overdue[0] ?? first;
+        const currentCentavos = invoiceRows
+          .filter((invoice) => daysPastDue(invoice.dueDate, query.asOf) === 0)
+          .reduce((total, invoice) => total + invoice.balanceCentavos, 0);
+        const totalArrearsCentavos = overdue.reduce(
+          (total, invoice) => total + invoice.balanceCentavos,
+          0,
+        );
+        const suspensionCandidate =
+          overdue.length > 0 &&
+          isSuspensionCandidate(oldest.dueDate, query.asOf, settings);
+        const agingCentavos = agingTotals(invoiceRows, query.asOf);
+        return {
+          serviceAccountId: first.serviceAccountId,
+          serviceAccountNumber: first.serviceAccountNumber,
+          serviceStatus: first.serviceStatus,
+          subscriberId: first.subscriberId,
+          subscriberAccountNumber: first.subscriberAccountNumber,
+          subscriberName: first.subscriberName,
+          planId: first.planId,
+          planName: first.planName,
+          serviceTypeCode:
+            first.serviceTypeCode as ReceivableDetailDto['serviceTypeCode'],
+          collectionAreaId: first.collectionAreaId,
+          collectionAreaName: first.collectionAreaName,
+          collectorId: first.collectorId,
+          collectorName: first.collectorName,
+          monthsUnpaid: overdue.length,
+          oldestUnpaidInvoice: oldest.invoiceNumber,
+          oldestUnpaidInvoiceId: oldest.invoiceId,
+          oldestDueDate: oldest.dueDate,
+          lastPaymentAt: first.lastPaymentAt
+            ? new Date(first.lastPaymentAt).toISOString()
+            : null,
+          currentCentavos,
+          totalArrearsCentavos,
+          totalOutstandingCentavos: currentCentavos + totalArrearsCentavos,
+          agingCentavos,
+          oldestAgingBucket: agingBucket(oldest.dueDate, query.asOf),
+          followUp:
             overdue.length > 0 &&
-            isSuspensionCandidate(oldest.dueDate, query.asOf, settings);
-          const agingCentavos = agingTotals(invoiceRows, query.asOf);
-          return {
-            serviceAccountId: first.serviceAccountId,
-            serviceAccountNumber: first.serviceAccountNumber,
-            serviceStatus: first.serviceStatus,
-            subscriberId: first.subscriberId,
-            subscriberAccountNumber: first.subscriberAccountNumber,
-            subscriberName: first.subscriberName,
-            planId: first.planId,
-            planName: first.planName,
-            serviceTypeCode:
-              first.serviceTypeCode as ReceivableDetailDto['serviceTypeCode'],
-            collectionAreaId: first.collectionAreaId,
-            collectionAreaName: first.collectionAreaName,
-            collectorId: first.collectorId,
-            collectorName: first.collectorName,
-            monthsUnpaid: overdue.length,
-            oldestUnpaidInvoice: oldest.invoiceNumber,
-            oldestDueDate: oldest.dueDate,
-            lastPaymentAt: first.lastPaymentAt
-              ? new Date(first.lastPaymentAt).toISOString()
-              : null,
-            currentCentavos,
-            totalArrearsCentavos,
-            totalOutstandingCentavos: currentCentavos + totalArrearsCentavos,
-            agingCentavos,
-            oldestAgingBucket: agingBucket(oldest.dueDate, query.asOf),
-            followUp:
-              overdue.length > 0 &&
-              daysPastDue(oldest.dueDate, query.asOf) >
-                settings.gracePeriodDays,
-            suspensionCandidate,
-          };
-        })
-        .filter(
-          (row) =>
-            (!normalizedQuery ||
-              [
-                row.subscriberName,
-                row.subscriberAccountNumber,
-                row.serviceAccountNumber,
-              ].some((value) =>
-                value.toLowerCase().includes(normalizedQuery),
-              )) &&
-            (!query.collectorId || row.collectorId === query.collectorId) &&
-            (!query.areaId || row.collectionAreaId === query.areaId) &&
-            (!query.planId || row.planId === query.planId) &&
-            (!query.serviceTypeCode ||
-              row.serviceTypeCode === query.serviceTypeCode) &&
-            (!query.agingBucket || row.oldestAgingBucket === query.agingBucket),
+            daysPastDue(oldest.dueDate, query.asOf) > settings.gracePeriodDays,
+          suspensionCandidate,
+        };
+      })
+      .filter(
+        (row) =>
+          (!normalizedQuery ||
+            [
+              row.subscriberName,
+              row.subscriberAccountNumber,
+              row.serviceAccountNumber,
+            ].some((value) => value.toLowerCase().includes(normalizedQuery))) &&
+          (!query.collectorId || row.collectorId === query.collectorId) &&
+          (!query.areaId || row.collectionAreaId === query.areaId) &&
+          (!query.planId || row.planId === query.planId) &&
+          (!query.serviceTypeCode ||
+            row.serviceTypeCode === query.serviceTypeCode) &&
+          (!query.agingBucket || row.oldestAgingBucket === query.agingBucket),
+      );
+    const existing = new Set(grouped.keys());
+    const zeros: ReceivableDetailDto[] = settledSuspended
+      .filter((row) => !existing.has(row.serviceAccountId))
+      .map((row) => ({
+        serviceAccountId: row.serviceAccountId,
+        serviceAccountNumber: row.serviceAccountNumber,
+        serviceStatus: 'SUSPENDED' as const,
+        subscriberId: row.subscriberId,
+        subscriberAccountNumber: row.subscriberAccountNumber,
+        subscriberName: row.subscriberName,
+        planId: row.planId,
+        planName: row.planName,
+        serviceTypeCode:
+          row.serviceTypeCode as ReceivableDetailDto['serviceTypeCode'],
+        collectionAreaId: row.collectionAreaId,
+        collectionAreaName: row.collectionAreaName,
+        collectorId: row.collectorId,
+        collectorName: row.collectorName,
+        monthsUnpaid: 0,
+        oldestUnpaidInvoice: 'No unpaid invoice',
+        oldestDueDate: query.asOf,
+        lastPaymentAt: row.lastPaymentAt
+          ? new Date(row.lastPaymentAt).toISOString()
+          : null,
+        currentCentavos: 0,
+        totalArrearsCentavos: 0,
+        totalOutstandingCentavos: 0,
+        agingCentavos: {
+          CURRENT: 0,
+          '1_30': 0,
+          '31_60': 0,
+          '61_90': 0,
+          '90_PLUS': 0,
+        },
+        oldestAgingBucket: 'CURRENT' as const,
+        followUp: false,
+        suspensionCandidate: false,
+      }))
+      .filter(
+        (row) =>
+          (!normalizedQuery ||
+            [
+              row.subscriberName,
+              row.subscriberAccountNumber,
+              row.serviceAccountNumber,
+            ].some((value) => value.toLowerCase().includes(normalizedQuery))) &&
+          (!query.collectorId || row.collectorId === query.collectorId) &&
+          (!query.areaId || row.collectionAreaId === query.areaId) &&
+          (!query.planId || row.planId === query.planId) &&
+          (!query.serviceTypeCode ||
+            row.serviceTypeCode === query.serviceTypeCode) &&
+          (!query.agingBucket || query.agingBucket === 'CURRENT'),
+      );
+    return orderReceivablesForFollowUp([...outstandingRows, ...zeros]).sort(
+      (left, right) =>
+        Number(
+          right.serviceStatus === 'SUSPENDED' &&
+            right.totalArrearsCentavos === 0,
+        ) -
+        Number(
+          left.serviceStatus === 'SUSPENDED' && left.totalArrearsCentavos === 0,
         ),
     );
   }

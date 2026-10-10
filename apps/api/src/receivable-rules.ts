@@ -81,6 +81,7 @@ export function orderReceivablesForFollowUp<
     oldestDueDate: string;
     totalArrearsCentavos: number;
     subscriberAccountNumber: string;
+    serviceAccountNumber?: string;
   },
 >(rows: T[]): T[] {
   return [...rows].sort(
@@ -88,6 +89,11 @@ export function orderReceivablesForFollowUp<
       Number(right.followUp) - Number(left.followUp) ||
       left.oldestDueDate.localeCompare(right.oldestDueDate) ||
       right.totalArrearsCentavos - left.totalArrearsCentavos ||
-      left.subscriberAccountNumber.localeCompare(right.subscriberAccountNumber),
+      left.subscriberAccountNumber.localeCompare(
+        right.subscriberAccountNumber,
+      ) ||
+      (left.serviceAccountNumber ?? '').localeCompare(
+        right.serviceAccountNumber ?? '',
+      ),
   );
 }

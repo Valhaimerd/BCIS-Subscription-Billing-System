@@ -138,7 +138,7 @@ State changes follow `OPEN → IN_PROGRESS → SUBMITTED → REMITTED → RECONC
 
 ## Receivables and service control
 
-All endpoints require a Bearer session. Reads require `receivable.view`; policy changes, suspensions, and reconnections require `receivable.manage`.
+All endpoints require a Bearer session. Reads require `receivable.view`; delinquency policy changes require owner `settings.manage`; suspensions and reconnections require `receivable.manage`.
 
 | Method  | Path                                           | Purpose                                                      |
 | ------- | ---------------------------------------------- | ------------------------------------------------------------ |
@@ -151,9 +151,9 @@ All endpoints require a Bearer session. Reads require `receivable.view`; policy 
 | `POST`  | `/api/v1/service-accounts/:id/reconnections`   | Request reconnection after overdue arrears are cleared       |
 | `POST`  | `/api/v1/reconnections/:id/complete`           | Restore service and post the configured fee                  |
 
-Both receivable reads require an explicit ISO `asOf` date. Aging boundaries are inclusive: due today is Current; 1-30, 31-60, and 61-90 use those exact day ranges; more than 90 days is 90+. Detail filters accept `q`, `collectorId`, `areaId`, `planId`, `serviceTypeCode`, `agingBucket`, `page`, and `pageSize`.
+Both receivable reads require an explicit ISO `asOf` date. Aging boundaries are inclusive: due today is Current; 1-30, 31-60, and 61-90 use those exact day ranges; more than 90 days is 90+. Both reads accept `q`, `collectorId`, `areaId`, `planId`, `serviceTypeCode`, and `agingBucket`; detail also accepts `page`, `pageSize`, and `queue` (`ACT_TODAY`, `DUE_SOON`, `ALL`). Summary and detail use the same non-queue filters. Summary returns aging amounts and account counts, plus counts for each queue. Act today includes accounts past grace or eligible for suspension and today's settled suspended services. Due soon includes other accounts overdue within grace or due within seven days. All includes every matching case. Ordering is stable: reconnection-ready, follow-up, oldest due date, arrears, then subscriber account. Snapshot balances follow `asOf`; service state and policy are current, so the desktop permits state changes only on today's snapshot.
 
-Receivables are calculated from finalized, non-void invoices and their adjustments, active payment allocations, and remaining subscriber credit as they existed by the requested date. Suspension requires an active service whose oldest overdue invoice meets the configured grace and threshold rules. Reconnection requires a suspended service with no overdue arrears. Completion appends service history and posts any configured fee as an audited invoice adjustment and ledger debit.
+Receivables are calculated from finalized, non-void invoices and their adjustments, active payment allocations, and remaining subscriber credit as they existed by the requested date. Today's queue also includes suspended services with no outstanding invoice balance so staff can request reconnection. Suspension requires an active service whose oldest overdue invoice meets the configured grace and threshold rules. Reconnection requires a suspended service with no overdue arrears. Completion appends service history and posts any configured fee as an audited invoice adjustment and ledger debit.
 
 ## Dashboard and reports
 

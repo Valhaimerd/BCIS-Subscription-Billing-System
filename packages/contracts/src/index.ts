@@ -615,8 +615,18 @@ export const agingBuckets = [
 ] as const;
 export const agingBucketSchema = z.enum(agingBuckets);
 export const receivableAsOfSchema = z.object({ asOf: z.iso.date() });
+export const receivableSummaryQuerySchema = receivableAsOfSchema.extend({
+  q: z.string().optional(),
+  collectorId: z.uuid().optional(),
+  areaId: z.uuid().optional(),
+  planId: z.uuid().optional(),
+  serviceTypeCode: serviceTypeCodeSchema.optional(),
+  agingBucket: agingBucketSchema.optional(),
+});
 export const receivableListQuerySchema = paginationSchema.extend({
   asOf: z.iso.date(),
+  q: z.string().optional(),
+  queue: z.enum(['ACT_TODAY', 'DUE_SOON', 'ALL']).optional(),
   collectorId: z.uuid().optional(),
   areaId: z.uuid().optional(),
   planId: z.uuid().optional(),
@@ -663,6 +673,8 @@ export interface ReceivableSummaryDto {
   followUpAccounts: number;
   suspensionCandidates: number;
   buckets: Record<(typeof agingBuckets)[number], number>;
+  bucketCounts?: Record<(typeof agingBuckets)[number], number>;
+  caseCounts?: { actToday: number; dueSoon: number; all: number };
 }
 export interface ReceivableDetailDto {
   serviceAccountId: string;
@@ -680,6 +692,7 @@ export interface ReceivableDetailDto {
   collectorName: string | null;
   monthsUnpaid: number;
   oldestUnpaidInvoice: string;
+  oldestUnpaidInvoiceId?: string;
   oldestDueDate: string;
   lastPaymentAt: string | null;
   currentCentavos: number;

@@ -583,6 +583,7 @@ function AuthenticatedShell({
           ) : activeView === 'Receivables' ? (
             <ReceivablesView
               canManage={session.user.permissions.includes('receivable.manage')}
+              canViewBilling={session.user.permissions.includes('billing.view')}
             />
           ) : activeView === 'Reports' ? (
             <ReportsView

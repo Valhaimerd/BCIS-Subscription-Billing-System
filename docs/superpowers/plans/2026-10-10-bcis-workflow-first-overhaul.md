@@ -162,10 +162,10 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `ReceivablesView.tsx`, `receivable-routes.ts`, `receivables.ts`, contracts/bridge, tests and manual.
 
-- [ ] Define stable queue ordering and as-of semantics; ensure summary/chart/card results use the same date and filters.
-- [ ] Build Act today/Due soon/All case cards and an aging distribution with labels, counts, values and drill-down.
-- [ ] Build case sheet with source invoice/ledger links, last payment, service state, policy basis, and permitted action.
-- [ ] Move delinquency policy controls to owner System settings. If a contact log is desired, design its DB/audit contract separately before showing a “contacted” action.
+- [x] Define stable queue ordering and as-of semantics; ensure summary/chart/card results use the same date and filters.
+- [x] Build Act today/Due soon/All case cards and an aging distribution with labels, counts, values and drill-down.
+- [x] Build case sheet with source invoice/ledger links, last payment, service state, policy basis, and permitted action.
+- [x] Move delinquency policy controls to owner System settings. If a contact log is desired, design its DB/audit contract separately before showing a “contacted” action.
 - [ ] Test stale requests, policy threshold edge cases, auditor read-only view, state conflicts and history after suspension/reconnection.
 
 **Done when:** A user can choose and resolve a follow-up case without a broad table or policy form interrupting the queue.

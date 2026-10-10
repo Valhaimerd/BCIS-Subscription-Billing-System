@@ -187,15 +187,13 @@ The required lifecycle is `OPEN → IN PROGRESS → SUBMITTED → REMITTED → R
 ### Step 9 — Monitor receivables and service status
 
 1. Select **Receivables**.
-2. Choose the **Balance date** and select **Refresh**. The displayed snapshot date changes only after the matching summary and account list load.
-3. Review the priority measures: overdue balance, follow-up accounts, suspension candidates, and total receivables. Current balance and overdue subscriber count are shown as supporting measures.
-4. The account queue sorts eligible follow-up accounts first, then oldest due date, then arrears. Use the aging buttons or filters for collector, area, plan, service, and age to narrow it.
-5. Select **Review [subscriber] receivable details** to open **Service control**.
-6. Review the subscriber and service identifiers, plan, area/collector, oldest unpaid invoice and due date, months overdue, arrears, last payment, and service status timeline.
-7. If an active account qualifies under the configured policy, enter the effective date, reason, and notes, then select **Approve suspension**.
-8. After the qualifying balance is paid, use the reconnection workflow and complete the request when service has been restored.
+2. Choose the **Balance date** and select **Apply date**. Balances, counts, aging, and cases update together. Past snapshots are read only because service state and policy are current.
+3. Start with **Act today**. Use **Due soon** for accounts within grace or due in seven days, or **All cases** for the full queue. Each card names its priority reason, balance, oldest due date, last payment, and assigned collector.
+4. Select an aging range to focus the snapshot and queue. Select it again to clear the range. Open **Search & filters** only when you need subscriber, collector, area, plan, or service filters.
+5. Select **Review case**. Read the outstanding balance, oldest invoice, last payment, service state, policy basis, and service history. Where your role allows billing access, open the source invoice or ledger entries.
+6. For a qualifying active service, select **Review suspension**, confirm the effective date and reason, then record it. For a paid suspended service, review and record a reconnection request; complete the request after service restoration. The API checks eligibility again when you submit.
 
-Only authorized personnel should change delinquency settings or approve suspension and reconnection. Every service-state change remains in history.
+Only authorized personnel can approve suspension or reconnection. The Owner changes delinquency thresholds in **Backup & recovery** under **Delinquency policy**. Every service-state change remains in history. No contact history is displayed because the system does not yet store contact attempts.
 
 ### Step 10 — Produce operational and management reports
 

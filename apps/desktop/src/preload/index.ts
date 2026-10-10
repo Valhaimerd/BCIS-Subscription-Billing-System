@@ -100,7 +100,8 @@ const desktopApi: DesktopApi = Object.freeze({
       }),
   }),
   receivables: Object.freeze({
-    summary: (asOf: string) => ipcRenderer.invoke('receivables:summary', asOf),
+    summary: (query: string | Record<string, unknown>) =>
+      ipcRenderer.invoke('receivables:summary', query),
     list: (query: Record<string, unknown>) =>
       ipcRenderer.invoke('receivables:list', query),
     settings: () => ipcRenderer.invoke('receivables:settings'),

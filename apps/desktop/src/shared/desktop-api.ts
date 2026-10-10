@@ -172,7 +172,9 @@ export interface DesktopApi {
     ) => Promise<CollectionBatchDetailDto>;
   };
   receivables: {
-    summary: (asOf: string) => Promise<ReceivableSummaryDto>;
+    summary: (
+      query: string | Record<string, unknown>,
+    ) => Promise<ReceivableSummaryDto>;
     list: (
       query: Record<string, unknown>,
     ) => Promise<Paginated<ReceivableDetailDto>>;

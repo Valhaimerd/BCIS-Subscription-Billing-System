@@ -1,5 +1,6 @@
 import type {
   ApplicationSettingsDto,
+  DelinquencySettingsDto,
   BackupHistoryDto,
   OperationsReadinessDto,
   Paginated,
@@ -22,6 +23,9 @@ export function OperationsView({
     null,
   );
   const [settings, setSettings] = useState<ApplicationSettingsDto | null>(null);
+  const [delinquency, setDelinquency] = useState<DelinquencySettingsDto | null>(
+    null,
+  );
   const [history, setHistory] = useState<Paginated<BackupHistoryDto> | null>(
     null,
   );
@@ -49,6 +53,8 @@ export function OperationsView({
       setReadiness(nextReadiness);
       setSettings(nextSettings);
       setHistory(nextHistory);
+      if (canManageSettings)
+        setDelinquency(await window.bcis!.receivables.settings());
     } catch (caught) {
       setError(messageFor(caught));
       setLoadFailed(true);
@@ -85,6 +91,29 @@ export function OperationsView({
       );
       setSettings(await window.bcis!.operations.updateSettings(value));
       setNotice('Backup retention updated. History records remain immutable.');
+    } catch (caught) {
+      setError(messageFor(caught));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function updateDelinquency(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setBusy('delinquency');
+    setError('');
+    try {
+      setDelinquency(
+        await window.bcis!.receivables.updateSettings({
+          gracePeriodDays: Number(data.get('gracePeriodDays')),
+          suspensionThresholdDays: Number(data.get('suspensionThresholdDays')),
+          reconnectionFeeCentavos: Math.round(
+            Number(data.get('reconnectionFee')) * 100,
+          ),
+        }),
+      );
+      setNotice('Delinquency policy saved and audited.');
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -231,6 +260,66 @@ export function OperationsView({
           </label>
           <button disabled={busy !== ''} type="submit">
             {busy === 'settings' ? 'Saving...' : 'Save retention'}
+          </button>
+        </form>
+      ) : null}
+
+      {canManageSettings && delinquency ? (
+        <form
+          className="data-card retention-form delinquency-policy"
+          onSubmit={updateDelinquency}
+        >
+          <div>
+            <h3>Delinquency policy</h3>
+            <p>
+              Controls follow-up and suspension eligibility in the receivables
+              desk. Changes are audited.
+            </p>
+          </div>
+          <label>
+            Grace period (days)
+            <input
+              key={`grace-${delinquency.gracePeriodDays}`}
+              type="number"
+              name="gracePeriodDays"
+              min="0"
+              max="365"
+              required
+              defaultValue={delinquency.gracePeriodDays}
+            />
+          </label>
+          <label>
+            Suspension threshold (days)
+            <input
+              key={`threshold-${delinquency.suspensionThresholdDays}`}
+              type="number"
+              name="suspensionThresholdDays"
+              min="1"
+              max="730"
+              required
+              defaultValue={delinquency.suspensionThresholdDays}
+            />
+          </label>
+          <label>
+            Reconnection fee (PHP)
+            <input
+              key={`fee-${delinquency.reconnectionFeeCentavos}`}
+              type="number"
+              name="reconnectionFee"
+              min="0"
+              step="0.01"
+              required
+              defaultValue={(delinquency.reconnectionFeeCentavos / 100).toFixed(
+                2,
+              )}
+            />
+          </label>
+          <button
+            className="primary-action"
+            disabled={busy !== ''}
+            type="submit"
+          >
+            {busy === 'delinquency' ? 'Saving…' : 'Save policy'}
           </button>
         </form>
       ) : null}

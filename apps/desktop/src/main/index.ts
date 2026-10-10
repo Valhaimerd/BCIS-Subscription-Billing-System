@@ -242,8 +242,16 @@ ipcMain.handle(
       body: JSON.stringify({ amountCentavos, notes }),
     }),
 );
-ipcMain.handle('receivables:summary', (_event, asOf: string) =>
-  authClient.data(`/receivables/summary?${new URLSearchParams({ asOf })}`),
+ipcMain.handle(
+  'receivables:summary',
+  (_event, query: string | Record<string, unknown>) => {
+    const values = new URLSearchParams();
+    for (const [key, value] of Object.entries(
+      typeof query === 'string' ? { asOf: query } : query,
+    ))
+      if (value !== undefined && value !== '') values.set(key, String(value));
+    return authClient.data(`/receivables/summary?${values}`);
+  },
 );
 ipcMain.handle('receivables:list', (_event, query: Record<string, unknown>) => {
   const values = new URLSearchParams();

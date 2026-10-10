@@ -1,7 +1,7 @@
 import {
   delinquencySettingsInputSchema,
-  receivableAsOfSchema,
   receivableListQuerySchema,
+  receivableSummaryQuerySchema,
   reconnectionCompletionSchema,
   reconnectionRequestSchema,
   suspensionInputSchema,
@@ -22,7 +22,7 @@ export async function registerReceivableRoutes(
 ) {
   const authorize = (
     authorization: string | undefined,
-    permission: 'receivable.view' | 'receivable.manage',
+    permission: 'receivable.view' | 'receivable.manage' | 'settings.manage',
   ) => auth.requirePermission(readBearerToken(authorization), permission);
 
   app.get(
@@ -36,11 +36,11 @@ export async function registerReceivableRoutes(
     },
     async (request) => {
       await authorize(request.headers.authorization, 'receivable.view');
-      const { asOf } = receivableAsOfSchema.parse(request.query);
+      const filters = receivableSummaryQuerySchema.parse(request.query);
       return {
         success: true,
         message: 'Receivable summary loaded.',
-        data: await receivables.summary(asOf),
+        data: await receivables.summary(filters),
       };
     },
   );
@@ -97,7 +97,7 @@ export async function registerReceivableRoutes(
     async (request) => {
       const actor = await authorize(
         request.headers.authorization,
-        'receivable.manage',
+        'settings.manage',
       );
       return {
         success: true,

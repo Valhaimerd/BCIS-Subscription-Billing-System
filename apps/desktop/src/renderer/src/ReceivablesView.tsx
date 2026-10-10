@@ -8,12 +8,13 @@ import type {
 import { useEffect, useRef, useState } from 'react';
 
 import { ModalDialog } from './ModalDialog';
+import './receivable-journey.css';
 
-const AS_OF = (() => {
+const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-})();
-const PAGE_SIZE = 20;
+};
+const PAGE_SIZE = 12;
 const money = (value: number) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(
     value / 100,
@@ -22,68 +23,105 @@ const message = (error: unknown) =>
   error instanceof Error
     ? error.message
     : 'The request could not be completed.';
-const agingLabel = (bucket: string) =>
-  ({
-    CURRENT: 'Current',
-    '1_30': '1–30',
-    '31_60': '31–60',
-    '61_90': '61–90',
-    '90_PLUS': '90+',
-  })[bucket] ?? bucket;
+const ageLabels: Record<string, string> = {
+  CURRENT: 'Current',
+  '1_30': '1–30 days',
+  '31_60': '31–60 days',
+  '61_90': '61–90 days',
+  '90_PLUS': '90+ days',
+};
+type Queue = 'ACT_TODAY' | 'DUE_SOON' | 'ALL';
+type Filters = {
+  q: string;
+  collectorId: string;
+  areaId: string;
+  planId: string;
+  serviceTypeCode: string;
+  agingBucket: string;
+};
+const emptyFilters: Filters = {
+  q: '',
+  collectorId: '',
+  areaId: '',
+  planId: '',
+  serviceTypeCode: '',
+  agingBucket: '',
+};
 
-export function ReceivablesView({ canManage }: { canManage: boolean }) {
-  const [asOf, setAsOf] = useState(AS_OF);
-  const [appliedAsOf, setAppliedAsOf] = useState(AS_OF);
+export function ReceivablesView({
+  canManage,
+  canViewBilling = false,
+}: {
+  canManage: boolean;
+  canViewBilling?: boolean;
+}) {
+  const [date, setDate] = useState(today);
+  const [snapshotDate, setSnapshotDate] = useState(today);
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters);
+  const [queue, setQueue] = useState<Queue>('ACT_TODAY');
   const [summary, setSummary] = useState<ReceivableSummaryDto | null>(null);
   const [rows, setRows] = useState<ReceivableDetailDto[]>([]);
-  const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ReceivableDetailDto | null>(null);
+  const [history, setHistory] = useState<ServiceControlHistoryDto | null>(null);
+  const [settings, setSettings] = useState<DelinquencySettingsDto | null>(null);
+  const [invoice, setInvoice] = useState<Awaited<
+    ReturnType<NonNullable<typeof window.bcis>['billing']['getInvoice']>
+  > | null>(null);
+  const [ledger, setLedger] = useState<Awaited<
+    ReturnType<NonNullable<typeof window.bcis>['billing']['ledger']>
+  > | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<
+    'suspend' | 'request' | null
+  >(null);
+  const [completionTarget, setCompletionTarget] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  const [caseError, setCaseError] = useState('');
+  const loadSequence = useRef(0);
+  const caseSequence = useRef(0);
   const [references, setReferences] = useState<{
     collectors: ReferenceItemDto[];
     collectionAreas: ReferenceItemDto[];
     plans: ReferenceItemDto[];
     serviceTypes: ReferenceItemDto[];
   }>({ collectors: [], collectionAreas: [], plans: [], serviceTypes: [] });
-  const [settings, setSettings] = useState<DelinquencySettingsDto | null>(null);
-  const [selected, setSelected] = useState<ReceivableDetailDto | null>(null);
-  const [history, setHistory] = useState<ServiceControlHistoryDto | null>(null);
-  const [filters, setFilters] = useState({
-    q: '',
-    collectorId: '',
-    areaId: '',
-    planId: '',
-    serviceTypeCode: '',
-    agingBucket: '',
-  });
-  const [notice, setNotice] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const loadSequence = useRef(0);
 
   async function load(
-    targetPage = page,
-    targetAsOf = asOf,
-    targetFilters = filters,
+    targetPage = 1,
+    targetDate = snapshotDate,
+    targetFilters = appliedFilters,
+    targetQueue = queue,
+    append = false,
   ) {
     const sequence = ++loadSequence.current;
+    setLoading(true);
+    setError('');
+    const query = { ...targetFilters, asOf: targetDate };
     try {
-      setLoading(true);
-      setError('');
       const [nextSummary, result] = await Promise.all([
-        window.bcis!.receivables.summary(targetAsOf),
+        window.bcis!.receivables.summary(query),
         window.bcis!.receivables.list({
-          ...targetFilters,
-          asOf: targetAsOf,
+          ...query,
+          queue: targetQueue,
           page: targetPage,
           pageSize: PAGE_SIZE,
         }),
       ]);
       if (sequence !== loadSequence.current) return;
       setSummary(nextSummary);
-      setRows(result.items);
-      setPage(result.page);
+      setRows((current) =>
+        append ? [...current, ...result.items] : result.items,
+      );
       setTotal(result.total);
-      setAppliedAsOf(targetAsOf);
+      setPage(result.page);
+      setSnapshotDate(targetDate);
+      setAppliedFilters(targetFilters);
+      setQueue(targetQueue);
     } catch (caught) {
       if (sequence === loadSequence.current) setError(message(caught));
     } finally {
@@ -93,708 +131,764 @@ export function ReceivablesView({ canManage }: { canManage: boolean }) {
 
   useEffect(() => {
     if (!window.bcis) return;
-    let cancelled = false;
-    void load(1, AS_OF);
-    void window.bcis.masterData.references().then(
-      (nextReferences) => {
-        if (!cancelled) setReferences(nextReferences);
-      },
-      (caught: unknown) => {
-        if (!cancelled) setError(message(caught));
-      },
-    );
-    void window.bcis.receivables.settings().then(
-      (nextSettings) => {
-        if (!cancelled) setSettings(nextSettings);
-      },
-      (caught: unknown) => {
-        if (!cancelled) setError(message(caught));
-      },
-    );
+    void load(1, today(), emptyFilters, 'ACT_TODAY');
+    void window.bcis.masterData
+      .references()
+      .then(setReferences)
+      .catch((caught: unknown) => setError(message(caught)));
+    void window.bcis.receivables
+      .settings()
+      .then(setSettings)
+      .catch((caught: unknown) => setError(message(caught)));
     return () => {
-      cancelled = true;
       loadSequence.current += 1;
+      caseSequence.current += 1;
     };
   }, []);
 
   async function open(row: ReceivableDetailDto) {
+    const sequence = ++caseSequence.current;
+    setSelected(row);
+    setHistory(null);
+    setInvoice(null);
+    setLedger(null);
+    setConfirmAction(null);
+    setCompletionTarget(null);
+    setError('');
+    setCaseError('');
     try {
-      setSelected(row);
-      setHistory(await window.bcis!.receivables.history(row.serviceAccountId));
+      const next = await window.bcis!.receivables.history(row.serviceAccountId);
+      if (sequence === caseSequence.current) setHistory(next);
     } catch (caught) {
-      setError(message(caught));
+      if (sequence === caseSequence.current) setCaseError(message(caught));
     }
   }
 
-  async function saveSettings(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
+  async function refreshCase(serviceAccountId: string) {
+    await load(1, snapshotDate, appliedFilters, queue);
+    const next = await window.bcis!.receivables.history(serviceAccountId);
+    setHistory(next);
+    setSelected((current) =>
+      current?.serviceAccountId === serviceAccountId
+        ? { ...current, serviceStatus: next.status, suspensionCandidate: false }
+        : current,
+    );
+  }
+
+  async function openInvoice(row: ReceivableDetailDto) {
+    if (!row.oldestUnpaidInvoiceId) return;
+    const sequence = caseSequence.current;
     try {
-      const updated = await window.bcis!.receivables.updateSettings({
-        gracePeriodDays: Number(form.get('gracePeriodDays')),
-        suspensionThresholdDays: Number(form.get('suspensionThresholdDays')),
-        reconnectionFeeCentavos: Math.round(
-          Number(form.get('reconnectionFee')) * 100,
-        ),
-      });
-      setSettings(updated);
-      setNotice('Delinquency settings updated.');
-      await load(1, appliedAsOf);
+      const detail = await window.bcis!.billing.getInvoice(
+        row.oldestUnpaidInvoiceId,
+      );
+      if (sequence === caseSequence.current) setInvoice(detail);
     } catch (caught) {
-      setError(message(caught));
+      if (sequence === caseSequence.current) setError(message(caught));
     }
   }
 
-  async function suspend(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selected) return;
-    const form = new FormData(event.currentTarget);
+  async function openLedger(row: ReceivableDetailDto) {
+    const sequence = caseSequence.current;
     try {
-      await window.bcis!.receivables.suspend(selected.serviceAccountId, {
-        reason: String(form.get('reason')),
-        effectiveDate: String(form.get('effectiveDate')),
-        notes: String(form.get('notes')) || undefined,
-      });
-      setNotice('Service suspension approved and added to service history.');
-      await load(page, appliedAsOf);
-      const updatedHistory = await window.bcis!.receivables.history(
-        selected.serviceAccountId,
+      const entries = await window.bcis!.billing.ledger(
+        row.subscriberId,
+        row.oldestDueDate < snapshotDate ? row.oldestDueDate : undefined,
+        snapshotDate,
       );
-      setHistory(updatedHistory);
-      setSelected((current) =>
-        current
-          ? {
-              ...current,
-              serviceStatus: updatedHistory.status,
-              suspensionCandidate: false,
-            }
-          : null,
-      );
+      if (sequence === caseSequence.current) setLedger(entries);
     } catch (caught) {
-      setError(message(caught));
+      if (sequence === caseSequence.current) setError(message(caught));
     }
   }
 
-  async function reconnect(event: React.FormEvent<HTMLFormElement>) {
+  async function perform(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
-    const form = new FormData(event.currentTarget);
+    if (!selected || !confirmAction) return;
+    const data = new FormData(event.currentTarget);
+    setError('');
     try {
-      await window.bcis!.receivables.requestReconnection(
-        selected.serviceAccountId,
-        {
-          reason: String(form.get('reason')),
-          requestDate: String(form.get('requestDate')),
-          technician: String(form.get('technician')),
-          notes: String(form.get('notes')) || undefined,
-        },
-      );
-      setNotice('Reconnection request approved.');
-      setHistory(
-        await window.bcis!.receivables.history(selected.serviceAccountId),
-      );
+      if (confirmAction === 'suspend') {
+        await window.bcis!.receivables.suspend(selected.serviceAccountId, {
+          effectiveDate: String(data.get('date')),
+          reason: String(data.get('reason')),
+          notes: String(data.get('notes')) || undefined,
+        });
+        setNotice('Suspension recorded in the service history.');
+      } else {
+        await window.bcis!.receivables.requestReconnection(
+          selected.serviceAccountId,
+          {
+            requestDate: String(data.get('date')),
+            technician: String(data.get('technician')),
+            reason: String(data.get('reason')),
+            notes: String(data.get('notes')) || undefined,
+          },
+        );
+        setNotice('Reconnection request recorded.');
+      }
+      setConfirmAction(null);
+      await refreshCase(selected.serviceAccountId);
     } catch (caught) {
       setError(message(caught));
     }
   }
 
   async function complete(id: string) {
+    if (!selected) return;
+    setError('');
     try {
       await window.bcis!.receivables.completeReconnection(id, {
-        completionDate: appliedAsOf,
+        completionDate: today(),
       });
       setNotice('Reconnection completed and service restored.');
-      await load(page, appliedAsOf);
-      if (selected) {
-        const updatedHistory = await window.bcis!.receivables.history(
-          selected.serviceAccountId,
-        );
-        setHistory(updatedHistory);
-        setSelected((current) =>
-          current
-            ? {
-                ...current,
-                serviceStatus: updatedHistory.status,
-                suspensionCandidate: false,
-              }
-            : null,
-        );
-      }
+      setCompletionTarget(null);
+      await refreshCase(selected.serviceAccountId);
     } catch (caught) {
       setError(message(caught));
     }
   }
 
+  const canAct = canManage && snapshotDate === today();
+  const counts = summary?.caseCounts;
+  const queueTabs: { key: Queue; title: string; count: number }[] = [
+    { key: 'ACT_TODAY', title: 'Act today', count: counts?.actToday ?? 0 },
+    { key: 'DUE_SOON', title: 'Due soon', count: counts?.dueSoon ?? 0 },
+    { key: 'ALL', title: 'All cases', count: counts?.all ?? 0 },
+  ];
+
   return (
-    <div className="data-layout receivables-view">
-      {notice ? (
+    <div className="receivable-desk">
+      {notice && (
         <div className="success-notice" role="status">
           {notice}
         </div>
-      ) : null}
-      {error ? (
+      )}
+      {error && (
         <div className="form-error" role="alert">
           {error}
         </div>
-      ) : null}
-      <section className="data-card receivable-overview">
-        <div className="receivable-toolbar">
-          <div>
-            <span>RECEIVABLES SNAPSHOT · AS OF {appliedAsOf}</span>
-            <h2>Accounts receivable</h2>
-          </div>
-          <div className="receivable-date-actions">
-            <label>
-              Balance date
-              <input
-                name="asOf"
-                onChange={(event) => setAsOf(event.target.value)}
-                type="date"
-                value={asOf}
-              />
-            </label>
-            <button
-              className="primary-action"
-              onClick={() => void load(1)}
-              type="button"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-        {summary ? (
-          <>
-            <dl className="receivable-priority-grid">
-              <div className="priority-overdue">
-                <dt>Overdue balance</dt>
-                <dd>{money(summary.overdueCentavos)}</dd>
-              </div>
-              <div>
-                <dt>Follow-up accounts</dt>
-                <dd>{summary.followUpAccounts}</dd>
-              </div>
-              <div>
-                <dt>Suspension candidates</dt>
-                <dd>{summary.suspensionCandidates}</dd>
-              </div>
-              <div>
-                <dt>Total receivables</dt>
-                <dd>{money(summary.totalCentavos)}</dd>
-              </div>
-            </dl>
-            <div className="receivable-secondary-metrics">
-              <span>
-                Current balance{' '}
-                <strong>{money(summary.currentCentavos)}</strong>
-              </span>
-              <span>
-                Overdue subscribers{' '}
-                <strong>{summary.overdueSubscribers}</strong>
-              </span>
-            </div>
-            <div className="aging-section">
-              <div className="aging-heading">
-                <strong>Balance by invoice age</strong>
-                <span>Select an age range to focus the queue</span>
-              </div>
-              <div
-                className="aging-strip"
-                aria-label="Accounts receivable aging"
-              >
-                {Object.entries(summary.buckets).map(([bucket, value]) => (
-                  <button
-                    aria-label={`${agingLabel(bucket)} days, ${money(value)}`}
-                    aria-pressed={filters.agingBucket === bucket}
-                    key={bucket}
-                    className={filters.agingBucket === bucket ? 'selected' : ''}
-                    onClick={() => {
-                      const nextFilters = { ...filters, agingBucket: bucket };
-                      setFilters(nextFilters);
-                      void load(1, asOf, nextFilters);
-                    }}
-                    type="button"
-                  >
-                    <span>{agingLabel(bucket)}</span>
-                    <strong>{money(value)}</strong>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        ) : null}
-        {loading ? (
-          <p className="receivable-loading" role="status">
-            Updating balances and follow-up accounts…
+      )}
+      <header className="receivable-hero">
+        <div>
+          <span className="eyebrow">Receivables · {snapshotDate}</span>
+          <h2>Follow-up desk</h2>
+          <p>
+            Start with the accounts that need attention. Open a case to see the
+            balance, evidence, and next permitted step.
           </p>
-        ) : null}
-      </section>
+        </div>
+        <div className="receivable-date-actions">
+          <label>
+            Balance date
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
+          </label>
+          <button
+            className="primary-action"
+            type="button"
+            disabled={loading || !date}
+            onClick={() => void load(1, date, appliedFilters, queue)}
+          >
+            Apply date
+          </button>
+        </div>
+      </header>
 
       <section
-        aria-busy={loading}
-        className="data-card table-card receivable-table"
+        className="receivable-snapshot"
+        aria-label="Receivables snapshot"
       >
-        <div className="card-heading">
-          <div>
-            <span>Outstanding accounts · as of {appliedAsOf}</span>
-            <h2>Account follow-up</h2>
-          </div>
-          <div className="queue-context">
-            <span>{total} accounts</span>
-            <small>Sorted by eligibility, oldest due date, then arrears</small>
-          </div>
+        <div className="snapshot-figure">
+          <span>Overdue balance</span>
+          <strong>{summary ? money(summary.overdueCentavos) : '—'}</strong>
+          <small>{summary?.overdueSubscribers ?? '—'} subscribers</small>
         </div>
-        <form
-          className="filter-grid"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void load(1);
-          }}
-        >
-          <label>
-            Search
-            <input
-              onChange={(event) =>
-                setFilters({ ...filters, q: event.target.value })
-              }
-              value={filters.q}
-            />
-          </label>
-          <label>
-            Collector
-            <select
-              onChange={(event) =>
-                setFilters({ ...filters, collectorId: event.target.value })
-              }
-              value={filters.collectorId}
-            >
-              <option value="">All collectors</option>
-              {references.collectors.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Area
-            <select
-              onChange={(event) =>
-                setFilters({ ...filters, areaId: event.target.value })
-              }
-              value={filters.areaId}
-            >
-              <option value="">All areas</option>
-              {references.collectionAreas.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Plan
-            <select
-              onChange={(event) =>
-                setFilters({ ...filters, planId: event.target.value })
-              }
-              value={filters.planId}
-            >
-              <option value="">All plans</option>
-              {references.plans.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Service
-            <select
-              onChange={(event) =>
-                setFilters({ ...filters, serviceTypeCode: event.target.value })
-              }
-              value={filters.serviceTypeCode}
-            >
-              <option value="">All services</option>
-              {references.serviceTypes.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Age
-            <select
-              onChange={(event) =>
-                setFilters({ ...filters, agingBucket: event.target.value })
-              }
-              value={filters.agingBucket}
-            >
-              <option value="">All ages</option>
-              <option value="CURRENT">Current</option>
-              <option value="1_30">1–30</option>
-              <option value="31_60">31–60</option>
-              <option value="61_90">61–90</option>
-              <option value="90_PLUS">90+</option>
-            </select>
-          </label>
-          <button type="submit">Apply filters</button>
-        </form>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Subscriber / service</th>
-                <th>Area / collector</th>
-                <th>Months overdue</th>
-                <th>Oldest unpaid</th>
-                <th>Last payment</th>
-                <th>Arrears</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.serviceAccountId}>
-                  <td>
-                    <button
-                      aria-label={`Review ${row.subscriberName} receivable details`}
-                      className="record-link"
-                      onClick={() => void open(row)}
-                      type="button"
-                    >
-                      {row.subscriberName}
-                    </button>
-                    <small>
-                      {row.subscriberAccountNumber} · {row.serviceAccountNumber}{' '}
-                      · {row.planName}
-                    </small>
-                  </td>
-                  <td>
-                    {row.collectionAreaName ?? 'Unassigned'}
-                    <small>{row.collectorName ?? 'No collector'}</small>
-                  </td>
-                  <td>{row.monthsUnpaid}</td>
-                  <td>
-                    {row.oldestUnpaidInvoice}
-                    <small>
-                      Due {row.oldestDueDate} ·{' '}
-                      {row.oldestAgingBucket.replace('_', '–')}
-                    </small>
-                  </td>
-                  <td>
-                    {row.lastPaymentAt
-                      ? row.lastPaymentAt.slice(0, 10)
-                      : 'None'}
-                  </td>
-                  <td>
-                    {money(row.totalArrearsCentavos)}
-                    <small>{money(row.totalOutstandingCentavos)} total</small>
-                  </td>
-                  <td>
-                    <span
-                      className={`record-status ${row.suspensionCandidate ? 'attention' : row.followUp ? 'follow-up' : row.serviceStatus === 'ACTIVE' ? 'active' : ''}`}
-                    >
-                      {row.suspensionCandidate
-                        ? 'Suspension candidate'
-                        : row.followUp
-                          ? 'Follow-up'
-                          : row.serviceStatus}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="snapshot-figure">
+          <span>Follow-up cases</span>
+          <strong>{summary?.followUpAccounts ?? '—'}</strong>
+          <small>Past the grace period</small>
         </div>
-        {!loading && summary && !rows.length ? (
-          <div className="empty-state">
-            <strong>No accounts match these filters.</strong>
-            <span>Try clearing a filter or choosing a wider age range.</span>
-          </div>
-        ) : null}
-        <div className="pagination">
-          <button
-            aria-label="Previous receivables"
-            disabled={page <= 1}
-            onClick={() => void load(page - 1)}
-            type="button"
-          >
-            Previous
-          </button>
-          <span>
-            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          </span>
-          <button
-            aria-label="Next receivables"
-            disabled={page * PAGE_SIZE >= total}
-            onClick={() => void load(page + 1)}
-            type="button"
-          >
-            Next
-          </button>
+        <div className="snapshot-figure">
+          <span>Eligible for suspension</span>
+          <strong>{summary?.suspensionCandidates ?? '—'}</strong>
+          <small>Requires review and approval</small>
+        </div>
+        <div className="snapshot-figure">
+          <span>Total outstanding</span>
+          <strong>{summary ? money(summary.totalCentavos) : '—'}</strong>
+          <small>
+            Including {summary ? money(summary.currentCentavos) : '—'} current
+          </small>
         </div>
       </section>
 
-      {canManage && settings ? (
-        <form
-          className="data-card form-grid delinquency-settings"
-          onSubmit={saveSettings}
-        >
-          <div className="card-heading span-two">
-            <div>
-              <span>Policy settings</span>
-              <h2>Delinquency policy</h2>
-            </div>
-            <p>These thresholds govern service-control eligibility.</p>
+      <section className="receivable-aging" aria-label="Aging distribution">
+        <div className="receivable-section-title">
+          <div>
+            <span className="eyebrow">Where balances sit</span>
+            <h3>Aging at a glance</h3>
           </div>
-          <label>
-            Grace period (days)
-            <input
-              defaultValue={settings.gracePeriodDays}
-              min="0"
-              name="gracePeriodDays"
-              required
-              type="number"
-            />
-          </label>
-          <label>
-            Suspension threshold (days)
-            <input
-              defaultValue={settings.suspensionThresholdDays}
-              min="1"
-              name="suspensionThresholdDays"
-              required
-              type="number"
-            />
-          </label>
-          <label>
-            Reconnection fee (PHP)
-            <input
-              defaultValue={(settings.reconnectionFeeCentavos / 100).toFixed(2)}
-              min="0"
-              name="reconnectionFee"
-              required
-              step="0.01"
-              type="number"
-            />
-          </label>
-          <button className="primary-action" type="submit">
-            Save policy
-          </button>
-        </form>
-      ) : null}
+          <span>Click a range to focus every figure and case</span>
+        </div>
+        <div className="aging-visual">
+          {summary &&
+            Object.entries(summary.buckets).map(([bucket, amount]) => {
+              const width = summary.totalCentavos
+                ? Math.max(3, (amount / summary.totalCentavos) * 100)
+                : 3;
+              return (
+                <button
+                  key={bucket}
+                  type="button"
+                  aria-pressed={appliedFilters.agingBucket === bucket}
+                  className="aging-tile"
+                  onClick={() => {
+                    const next = {
+                      ...appliedFilters,
+                      agingBucket:
+                        appliedFilters.agingBucket === bucket ? '' : bucket,
+                    };
+                    setFilters(next);
+                    void load(1, snapshotDate, next, queue);
+                  }}
+                >
+                  <span>{ageLabels[bucket]}</span>
+                  <strong>{money(amount)}</strong>
+                  <small>
+                    {summary.bucketCounts?.[
+                      bucket as keyof NonNullable<typeof summary.bucketCounts>
+                    ] ?? '—'}{' '}
+                    accounts
+                  </small>
+                  <i style={{ width: `${width}%` }} />
+                </button>
+              );
+            })}
+        </div>
+      </section>
 
-      {selected && history ? (
+      <section className="receivable-cases" aria-busy={loading}>
+        <div className="receivable-section-title">
+          <div>
+            <span className="eyebrow">Case queue</span>
+            <h3>Choose the next account</h3>
+          </div>
+          <button
+            className="filter-toggle"
+            type="button"
+            aria-expanded={showFilters}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            {showFilters ? 'Hide filters' : 'Search & filters'}
+          </button>
+        </div>
+        <div className="queue-tabs" role="tablist" aria-label="Case priority">
+          {queueTabs.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={queue === tab.key}
+              type="button"
+              onClick={() =>
+                void load(1, snapshotDate, appliedFilters, tab.key)
+              }
+            >
+              {tab.title}
+              <strong>{tab.count}</strong>
+            </button>
+          ))}
+        </div>
+        {showFilters && (
+          <form
+            className="receivable-filters"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void load(1, snapshotDate, filters, queue);
+            }}
+          >
+            <label className="filter-search">
+              Find a subscriber or service
+              <input
+                value={filters.q}
+                placeholder="Name or account number"
+                onChange={(event) =>
+                  setFilters({ ...filters, q: event.target.value })
+                }
+              />
+            </label>
+            {(
+              [
+                ['collectorId', 'Collector', references.collectors],
+                ['areaId', 'Area', references.collectionAreas],
+                ['planId', 'Plan', references.plans],
+              ] as const
+            ).map(([key, label, options]) => (
+              <label key={key}>
+                {label}
+                <select
+                  value={filters[key]}
+                  onChange={(event) =>
+                    setFilters({ ...filters, [key]: event.target.value })
+                  }
+                >
+                  <option value="">All {label.toLowerCase()}s</option>
+                  {options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <label>
+              Service
+              <select
+                value={filters.serviceTypeCode}
+                onChange={(event) =>
+                  setFilters({
+                    ...filters,
+                    serviceTypeCode: event.target.value,
+                  })
+                }
+              >
+                <option value="">All services</option>
+                {references.serviceTypes.map((item) => (
+                  <option key={item.code} value={item.code}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="filter-actions">
+              <button className="primary-action" type="submit">
+                Apply filters
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setFilters(emptyFilters);
+                  void load(1, snapshotDate, emptyFilters, queue);
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+        )}
+        {loading && (
+          <p role="status" className="receivable-loading">
+            Updating cases…
+          </p>
+        )}
+        {!loading && !rows.length && (
+          <div className="empty-state">
+            <strong>No cases in this view</strong>
+            <span>Choose another priority or clear the filters.</span>
+          </div>
+        )}
+        <div className="case-grid">
+          {rows.map((row) => {
+            const days = Math.round(
+              (Date.parse(`${snapshotDate}T00:00:00Z`) -
+                Date.parse(`${row.oldestDueDate}T00:00:00Z`)) /
+                86_400_000,
+            );
+            const reason =
+              row.serviceStatus === 'SUSPENDED' &&
+              row.totalArrearsCentavos === 0
+                ? 'Ready for reconnection review'
+                : row.suspensionCandidate
+                  ? 'Suspension threshold reached'
+                  : row.followUp
+                    ? 'Follow-up due'
+                    : days > 0
+                      ? 'Overdue in grace period'
+                      : days >= -7
+                        ? 'Due within 7 days'
+                        : 'Current balance';
+            return (
+              <article className="case-card" key={row.serviceAccountId}>
+                <div className="case-top">
+                  <span className="case-avatar" aria-hidden="true">
+                    {row.subscriberName.slice(0, 1)}
+                  </span>
+                  <div>
+                    <h4>{row.subscriberName}</h4>
+                    <small>
+                      {row.serviceAccountNumber} · {row.planName}
+                    </small>
+                  </div>
+                  <span
+                    className={`case-state ${row.suspensionCandidate ? 'urgent' : row.followUp ? 'attention' : ''}`}
+                  >
+                    {reason}
+                  </span>
+                </div>
+                <div className="case-facts">
+                  <div>
+                    <span>Overdue</span>
+                    <strong>{money(row.totalArrearsCentavos)}</strong>
+                  </div>
+                  <div>
+                    <span>Oldest due</span>
+                    <strong>{row.oldestDueDate}</strong>
+                  </div>
+                </div>
+                <p className="case-context">
+                  {row.collectionAreaName ?? 'No area'} ·{' '}
+                  {row.collectorName ?? 'No collector'} · Last payment{' '}
+                  {row.lastPaymentAt?.slice(0, 10) ?? 'not recorded'}
+                </p>
+                <button
+                  className="case-open"
+                  type="button"
+                  onClick={() => void open(row)}
+                >
+                  Review case <span aria-hidden="true">→</span>
+                </button>
+              </article>
+            );
+          })}
+        </div>
+        {rows.length < total && (
+          <button
+            className="load-cases"
+            type="button"
+            disabled={loading}
+            onClick={() =>
+              void load(page + 1, snapshotDate, appliedFilters, queue, true)
+            }
+          >
+            Show more cases{' '}
+            <span>
+              {rows.length} of {total}
+            </span>
+          </button>
+        )}
+      </section>
+
+      {selected && (
         <ModalDialog
-          ariaLabel="Receivable service control detail"
+          ariaLabel="Receivable case"
           onClose={() => {
+            caseSequence.current += 1;
             setSelected(null);
             setHistory(null);
+            setConfirmAction(null);
           }}
         >
-          <section className="data-card service-control">
-            <div className="card-heading">
+          <div className="case-sheet">
+            <header>
               <div>
-                <span>Service control</span>
-                <h2>
-                  {selected.subscriberName} · {history.serviceAccountNumber}
-                </h2>
-              </div>
-              <div className="row-actions">
-                <button
-                  onClick={() => {
-                    setSelected(null);
-                    setHistory(null);
-                  }}
-                  type="button"
-                >
-                  Close
-                </button>
-                <span className="record-status">{history.status}</span>
-              </div>
-            </div>
-            <dl className="receivable-detail-grid">
-              <div>
-                <dt>Subscriber account</dt>
-                <dd>{selected.subscriberAccountNumber}</dd>
-              </div>
-              <div>
-                <dt>Service status</dt>
-                <dd>{history.status}</dd>
-              </div>
-              <div>
-                <dt>Plan</dt>
-                <dd>{selected.planName}</dd>
-              </div>
-              <div>
-                <dt>Collection area / collector</dt>
-                <dd>
-                  {selected.collectionAreaName ?? 'Unassigned'} ·{' '}
+                <span className="eyebrow">
+                  Case · {selected.serviceAccountNumber}
+                </span>
+                <h2>{selected.subscriberName}</h2>
+                <p>
+                  {selected.planName} ·{' '}
+                  {selected.collectionAreaName ?? 'No area'} ·{' '}
                   {selected.collectorName ?? 'No collector'}
-                </dd>
+                </p>
               </div>
-              <div>
-                <dt>Oldest unpaid invoice</dt>
-                <dd>{selected.oldestUnpaidInvoice}</dd>
-              </div>
-              <div>
-                <dt>Oldest due date</dt>
-                <dd>
-                  {selected.oldestDueDate} · {selected.monthsUnpaid} months
-                </dd>
-              </div>
-              <div>
-                <dt>Overdue balance</dt>
-                <dd>{money(selected.totalArrearsCentavos)}</dd>
-              </div>
-              <div>
-                <dt>Total outstanding</dt>
-                <dd>{money(selected.totalOutstandingCentavos)}</dd>
-              </div>
-              <div>
-                <dt>Last payment</dt>
-                <dd>
-                  {selected.lastPaymentAt
-                    ? selected.lastPaymentAt.slice(0, 10)
-                    : 'No payment recorded'}
-                </dd>
-              </div>
-            </dl>
-            <div className="service-control-grid">
-              <div>
-                <h3>Suspension history</h3>
-                {history.suspensions.length ? (
-                  history.suspensions.map((record) => (
-                    <article key={record.id}>
-                      <strong>{record.effectiveDate}</strong>
-                      <p>{record.reason}</p>
-                      <small>
-                        Approved by {record.approvedBy ?? 'system record'}
-                      </small>
-                    </article>
-                  ))
-                ) : (
-                  <p>No suspension records.</p>
-                )}
-              </div>
-              <div>
-                <h3>Reconnection history</h3>
-                {history.reconnections.length ? (
-                  history.reconnections.map((record) => (
-                    <article key={record.id}>
-                      <strong>
-                        {record.requestDate} · {record.status}
-                      </strong>
-                      <p>
-                        {record.technician} · {money(record.feeCentavos)}
-                      </p>
-                      {canManage && record.status === 'REQUESTED' ? (
-                        <button
-                          className="primary-action"
-                          onClick={() => void complete(record.id)}
-                          type="button"
-                        >
-                          Complete reconnection
-                        </button>
-                      ) : null}
-                    </article>
-                  ))
-                ) : (
-                  <p>No reconnection records.</p>
-                )}
-              </div>
-            </div>
-            <section className="service-event-history">
-              <h3>Service status timeline</h3>
-              {history.events.length ? (
-                <ol>
-                  {history.events.map((event) => (
-                    <li key={event.id}>
-                      <time dateTime={event.createdAt}>
-                        {event.createdAt.slice(0, 10)}
-                      </time>
-                      <strong>
-                        {event.previousStatus ?? 'Created'} → {event.newStatus}
-                      </strong>
-                      <span>{event.reason}</span>
-                    </li>
-                  ))}
-                </ol>
+              <button
+                type="button"
+                onClick={() => {
+                  caseSequence.current += 1;
+                  setSelected(null);
+                  setHistory(null);
+                }}
+              >
+                Close
+              </button>
+            </header>
+            {!history ? (
+              caseError ? (
+                <div className="form-error" role="alert">
+                  {caseError}{' '}
+                  <button type="button" onClick={() => void open(selected)}>
+                    Retry case
+                  </button>
+                </div>
               ) : (
-                <p>No service status changes recorded.</p>
-              )}
-            </section>
-            {canManage &&
-            selected.serviceStatus === 'ACTIVE' &&
-            selected.suspensionCandidate ? (
-              <form className="wide-form form-grid" onSubmit={suspend}>
-                <h3 className="span-two">Approve suspension</h3>
-                <label>
-                  Effective date
-                  <input
-                    defaultValue={appliedAsOf}
-                    name="effectiveDate"
-                    required
-                    type="date"
-                  />
-                </label>
-                <label>
-                  Reason
-                  <input
-                    defaultValue="Account exceeded the suspension threshold."
-                    name="reason"
-                    required
-                  />
-                </label>
-                <label className="span-two">
-                  Notes
-                  <input name="notes" />
-                </label>
-                <button className="primary-action span-two" type="submit">
-                  Approve suspension
-                </button>
-              </form>
-            ) : null}
-            {canManage &&
-            selected.serviceStatus === 'SUSPENDED' &&
-            selected.totalArrearsCentavos === 0 ? (
-              <form className="wide-form form-grid" onSubmit={reconnect}>
-                <h3 className="span-two">Approve reconnection request</h3>
-                <label>
-                  Request date
-                  <input
-                    defaultValue={appliedAsOf}
-                    name="requestDate"
-                    required
-                    type="date"
-                  />
-                </label>
-                <label>
-                  Technician
-                  <input name="technician" required />
-                </label>
-                <label>
-                  Reason
-                  <input
-                    defaultValue="Qualifying payment confirmed."
-                    name="reason"
-                    required
-                  />
-                </label>
-                <label>
-                  Notes
-                  <input name="notes" />
-                </label>
-                <button className="primary-action span-two" type="submit">
-                  Approve reconnection
-                </button>
-              </form>
-            ) : null}
-          </section>
+                <p role="status">Loading service history…</p>
+              )
+            ) : (
+              <>
+                <div className="case-sheet-amount">
+                  <span>Outstanding balance</span>
+                  <strong>{money(selected.totalOutstandingCentavos)}</strong>
+                  <small>
+                    {money(selected.totalArrearsCentavos)} overdue · snapshot{' '}
+                    {snapshotDate}
+                  </small>
+                </div>
+                <div className="case-sheet-grid">
+                  <div>
+                    <span>Oldest invoice</span>
+                    <strong>{selected.oldestUnpaidInvoice}</strong>
+                    <small>Due {selected.oldestDueDate}</small>
+                    {canViewBilling && selected.oldestUnpaidInvoiceId && (
+                      <button
+                        type="button"
+                        onClick={() => void openInvoice(selected)}
+                      >
+                        View invoice details
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <span>Last payment</span>
+                    <strong>
+                      {selected.lastPaymentAt?.slice(0, 10) ?? 'None recorded'}
+                    </strong>
+                    <small>From posted payment history</small>
+                    {canViewBilling && (
+                      <button
+                        type="button"
+                        onClick={() => void openLedger(selected)}
+                      >
+                        View ledger entries
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <span>Service state</span>
+                    <strong>{history.status}</strong>
+                    <small>{selected.subscriberAccountNumber}</small>
+                  </div>
+                  <div>
+                    <span>Policy basis</span>
+                    <strong>
+                      {settings
+                        ? `${settings.gracePeriodDays}-day grace · ${settings.suspensionThresholdDays}-day threshold`
+                        : 'Loading policy'}
+                    </strong>
+                    <small>
+                      {selected.suspensionCandidate
+                        ? 'Threshold met'
+                        : selected.followUp
+                          ? 'Follow-up eligible'
+                          : 'No control action due'}
+                    </small>
+                  </div>
+                </div>
+                {invoice && (
+                  <div className="case-evidence">
+                    <strong>Invoice {invoice.invoiceNumber}</strong>
+                    <p>
+                      Issued {invoice.invoiceDate} · Due {invoice.dueDate} ·{' '}
+                      {money(invoice.totalCentavos)}
+                    </p>
+                    <button type="button" onClick={() => setInvoice(null)}>
+                      Hide invoice
+                    </button>
+                  </div>
+                )}
+                {ledger && (
+                  <div className="case-evidence">
+                    <strong>Subscriber ledger · through {snapshotDate}</strong>
+                    {ledger.length ? (
+                      <ol>
+                        {ledger
+                          .slice(-8)
+                          .reverse()
+                          .map((entry) => (
+                            <li key={entry.id}>
+                              {entry.occurredAt.slice(0, 10)} ·{' '}
+                              {entry.reference} · {entry.description} · Debit{' '}
+                              {money(entry.debitCentavos)} / Credit{' '}
+                              {money(entry.creditCentavos)}
+                            </li>
+                          ))}
+                      </ol>
+                    ) : (
+                      <p>No ledger entries in this period.</p>
+                    )}
+                    <button type="button" onClick={() => setLedger(null)}>
+                      Hide ledger
+                    </button>
+                  </div>
+                )}
+                <details className="case-history">
+                  <summary>
+                    Service history · {history.events.length} events
+                  </summary>
+                  {history.events.length ? (
+                    <ol>
+                      {history.events.map((item) => (
+                        <li key={item.id}>
+                          <time>{item.createdAt.slice(0, 10)}</time>
+                          <strong>
+                            {item.previousStatus ?? 'Created'} →{' '}
+                            {item.newStatus}
+                          </strong>
+                          <span>{item.reason}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p>No service changes recorded.</p>
+                  )}
+                </details>
+                <details className="case-history">
+                  <summary>Suspensions and reconnections</summary>
+                  {history.suspensions.map((item) => (
+                    <p key={item.id}>
+                      Suspended {item.effectiveDate} · {item.reason}
+                    </p>
+                  ))}
+                  {history.reconnections.map((item) => (
+                    <p key={item.id}>
+                      Reconnection {item.requestDate} · {item.status} ·{' '}
+                      {item.technician}
+                    </p>
+                  ))}
+                  {!history.suspensions.length &&
+                    !history.reconnections.length && (
+                      <p>No service-control records.</p>
+                    )}
+                </details>
+                {snapshotDate !== today() && (
+                  <p className="case-readonly">
+                    Historical snapshots are for review. Apply today’s date to
+                    take action.
+                  </p>
+                )}
+                {canAct &&
+                  history.reconnections
+                    .filter((item) => item.status === 'REQUESTED')
+                    .map((item) => (
+                      <button
+                        key={item.id}
+                        className="primary-action"
+                        type="button"
+                        onClick={() => setCompletionTarget(item.id)}
+                      >
+                        Complete reconnection
+                      </button>
+                    ))}
+                {completionTarget && (
+                  <div className="case-action-form">
+                    <h3>Confirm service restoration</h3>
+                    <p>
+                      Confirm that the technician has restored service.
+                      Completion records the configured{' '}
+                      {settings
+                        ? money(settings.reconnectionFeeCentavos)
+                        : 'reconnection'}{' '}
+                      fee as an audited adjustment.
+                    </p>
+                    <div>
+                      <button
+                        className="primary-action"
+                        type="button"
+                        onClick={() => void complete(completionTarget)}
+                      >
+                        Complete and record
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCompletionTarget(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {canAct &&
+                  selected.serviceStatus === 'ACTIVE' &&
+                  selected.suspensionCandidate && (
+                    <button
+                      className="case-action"
+                      type="button"
+                      onClick={() => setConfirmAction('suspend')}
+                    >
+                      Review suspension
+                    </button>
+                  )}
+                {canAct &&
+                  selected.serviceStatus === 'SUSPENDED' &&
+                  selected.totalArrearsCentavos === 0 &&
+                  !history.reconnections.some(
+                    (item) => item.status === 'REQUESTED',
+                  ) && (
+                    <button
+                      className="case-action"
+                      type="button"
+                      onClick={() => setConfirmAction('request')}
+                    >
+                      Review reconnection request
+                    </button>
+                  )}
+                {confirmAction && (
+                  <form className="case-action-form" onSubmit={perform}>
+                    <h3>
+                      {confirmAction === 'suspend'
+                        ? 'Confirm suspension'
+                        : 'Confirm reconnection request'}
+                    </h3>
+                    <p>
+                      Review the case evidence and policy before recording this
+                      service change.
+                    </p>
+                    <label>
+                      {confirmAction === 'suspend'
+                        ? 'Effective date'
+                        : 'Request date'}
+                      <input
+                        required
+                        type="date"
+                        name="date"
+                        defaultValue={today()}
+                      />
+                    </label>
+                    {confirmAction === 'request' && (
+                      <label>
+                        Technician
+                        <input name="technician" required />
+                      </label>
+                    )}
+                    <label>
+                      Reason
+                      <input
+                        name="reason"
+                        required
+                        minLength={3}
+                        defaultValue={
+                          confirmAction === 'suspend'
+                            ? 'Account exceeded the suspension threshold.'
+                            : 'Qualifying payment confirmed.'
+                        }
+                      />
+                    </label>
+                    <label>
+                      Notes (optional)
+                      <textarea name="notes" />
+                    </label>
+                    <div>
+                      <button className="primary-action" type="submit">
+                        {confirmAction === 'suspend'
+                          ? 'Record suspension'
+                          : 'Record request'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmAction(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
         </ModalDialog>
-      ) : null}
+      )}
     </div>
   );
 }
