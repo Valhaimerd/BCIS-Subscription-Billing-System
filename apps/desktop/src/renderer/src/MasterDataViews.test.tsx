@@ -25,6 +25,23 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it('shows grouped plan cards before the optional compact register', async () => {
+  const user = userEvent.setup();
+  window.bcis = {
+    masterData: { listPlans: vi.fn(async () => [plan]) },
+  } as unknown as NonNullable<typeof window.bcis>;
+  render(<PlansView canManage={false} />);
+
+  const internet = await screen.findByRole('region', {
+    name: 'Internet plans',
+  });
+  expect(within(internet).getByText('Internet 25')).toBeVisible();
+  expect(within(internet).getByText('25 Mbps')).toBeVisible();
+  expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'View register' }));
+  expect(screen.getByRole('table')).toBeVisible();
+});
+
 it('opens an app-owned price dialog from the plan action and updates centavos on submit', async () => {
   const user = userEvent.setup();
   const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null);
@@ -35,14 +52,19 @@ it('opens an app-owned price dialog from the plan action and updates centavos on
   } as unknown as NonNullable<typeof window.bcis>;
   render(<PlansView canManage />);
 
-  await user.click(await screen.findByRole('button', { name: 'Change price' }));
+  await user.click(
+    (await screen.findAllByRole('button', { name: 'View plan' }))[0]!,
+  );
+  await user.click(screen.getByRole('button', { name: 'Change price' }));
 
   const dialog = await screen.findByRole('dialog', {
     name: 'Change plan price',
   });
   expect(dialog).toBeVisible();
   expect(prompt).not.toHaveBeenCalled();
-  expect(screen.getByLabelText('New monthly price (PHP)')).toHaveValue(799);
+  expect(screen.getByLabelText('New monthly price (PHP)')).toHaveValue(
+    '799.00',
+  );
   expect(updatePlan).not.toHaveBeenCalled();
 
   await user.clear(screen.getByLabelText('New monthly price (PHP)'));
@@ -51,7 +73,12 @@ it('opens an app-owned price dialog from the plan action and updates centavos on
     screen.getByLabelText('Reason for price change'),
     'Approved annual rate update',
   );
-  await user.click(screen.getByRole('button', { name: 'Save price' }));
+  await user.click(screen.getByRole('button', { name: 'Review change' }));
+  expect(updatePlan).not.toHaveBeenCalled();
+  expect(
+    screen.getByText(/Existing service rates and finalized invoices stay/),
+  ).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Save new price' }));
 
   expect(updatePlan).toHaveBeenCalledWith('plan-1', {
     priceCentavos: 85025,
@@ -78,17 +105,30 @@ it('filters plans by name, code, and active status', async () => {
   expect(
     screen.queryByRole('button', { name: 'Add service plan' }),
   ).not.toBeInTheDocument();
-  const table = screen.getByRole('table');
-  expect(await within(table).findByText('Internet 25')).toBeVisible();
-  expect(within(table).getByText('Cable Plus')).toBeVisible();
+  await user.click(
+    (await screen.findAllByRole('button', { name: 'View plan' }))[0]!,
+  );
+  expect(screen.getByRole('dialog', { name: 'Plan details' })).toBeVisible();
+  expect(
+    screen.queryByRole('button', { name: 'Change price' }),
+  ).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(
+    await screen.findByRole('region', { name: 'Internet plans' }),
+  ).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Cable plans' })).toBeVisible();
   await user.type(
     screen.getByRole('searchbox', { name: 'Search service plans' }),
     'cable',
   );
   await user.selectOptions(screen.getByLabelText('Plan status'), 'inactive');
 
-  expect(within(table).getByText('Cable Plus')).toBeVisible();
-  expect(within(table).queryByText('Internet 25')).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Cable plans' })).toHaveTextContent(
+    'Cable Plus',
+  );
+  expect(
+    screen.queryByRole('region', { name: 'Internet plans' }),
+  ).not.toBeInTheDocument();
   expect(screen.getByText(/1 of 2 plans/)).toBeVisible();
 });
 
@@ -101,6 +141,9 @@ it('shows only attributes required for the selected plan type', async () => {
 
   await user.click(screen.getByRole('button', { name: 'Add service plan' }));
   await user.selectOptions(screen.getByLabelText('Service type'), 'CABLE');
+  await user.type(screen.getByLabelText('Plan code'), 'TV-NEW');
+  await user.type(screen.getByLabelText('Plan name'), 'Cable New');
+  await user.click(screen.getByRole('button', { name: 'Continue →' }));
 
   expect(screen.queryByLabelText('Speed (Mbps)')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Channels')).toBeVisible();
@@ -125,11 +168,14 @@ it('creates plans using integer centavos and shows the created plan', async () =
   render(<PlansView canManage />);
 
   await user.click(screen.getByRole('button', { name: 'Add service plan' }));
-  await user.type(screen.getByLabelText('Code'), 'NET-40');
-  await user.type(screen.getByLabelText('Name'), 'Internet 40');
+  await user.type(screen.getByLabelText('Plan code'), 'NET-40');
+  await user.type(screen.getByLabelText('Plan name'), 'Internet 40');
+  await user.click(screen.getByRole('button', { name: 'Continue →' }));
   await user.type(screen.getByLabelText('Monthly price (PHP)'), '1200.50');
   await user.clear(screen.getByLabelText('Speed (Mbps)'));
   await user.type(screen.getByLabelText('Speed (Mbps)'), '40');
+  await user.click(screen.getByRole('button', { name: 'Continue →' }));
+  expect(createPlan).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Create plan' }));
 
   expect(createPlan).toHaveBeenCalledWith({
@@ -141,7 +187,68 @@ it('creates plans using integer centavos and shows the created plan', async () =
     channelCount: null,
   });
   expect(await screen.findByText('Internet 40')).toBeVisible();
-  expect(screen.getByRole('status')).toHaveTextContent('Service plan created.');
+  expect(screen.getByText('Service plan created.')).toBeVisible();
+});
+
+it('keeps a duplicate plan on review for correction and guards a mid-flow exit', async () => {
+  const user = userEvent.setup();
+  const createPlan = vi.fn(async () => {
+    throw new Error('Plan code already exists.');
+  });
+  window.bcis = {
+    masterData: { listPlans: vi.fn(async () => []), createPlan },
+  } as unknown as NonNullable<typeof window.bcis>;
+  render(<PlansView canManage />);
+
+  await user.click(screen.getByRole('button', { name: 'Add service plan' }));
+  await user.type(screen.getByLabelText('Plan code'), 'NET-40');
+  await user.type(screen.getByLabelText('Plan name'), 'Internet 40');
+  await user.click(screen.getByRole('button', { name: 'Continue →' }));
+  await user.type(screen.getByLabelText('Monthly price (PHP)'), '1200.50');
+  await user.click(screen.getByRole('button', { name: 'Continue →' }));
+  await user.click(screen.getByRole('button', { name: 'Create plan' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('already exists');
+  await user.click(screen.getByRole('button', { name: '← Back' }));
+  await user.click(screen.getByRole('button', { name: '← Back' }));
+  expect(screen.getByLabelText('Plan code')).toHaveValue('NET-40');
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.getByRole('group', { name: 'Discard changes' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+  expect(
+    screen.getByRole('button', { name: 'Add service plan' }),
+  ).toBeVisible();
+});
+
+it('blocks an unchanged price and keeps server errors in the review sheet', async () => {
+  const user = userEvent.setup();
+  const updatePlan = vi.fn(async () => {
+    throw new Error('Price changed on the server.');
+  });
+  window.bcis = {
+    masterData: { listPlans: vi.fn(async () => [plan]), updatePlan },
+  } as unknown as NonNullable<typeof window.bcis>;
+  render(<PlansView canManage />);
+  await user.click(await screen.findByRole('button', { name: 'View plan' }));
+  await user.click(screen.getByRole('button', { name: 'Change price' }));
+  await user.type(
+    screen.getByLabelText('Reason for price change'),
+    'Approved annual rate review',
+  );
+  await user.click(screen.getByRole('button', { name: 'Review change' }));
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Enter a new monthly price.',
+  );
+  expect(updatePlan).not.toHaveBeenCalled();
+  await user.clear(screen.getByLabelText('New monthly price (PHP)'));
+  await user.type(screen.getByLabelText('New monthly price (PHP)'), '850.00');
+  await user.click(screen.getByRole('button', { name: 'Review change' }));
+  await user.click(screen.getByRole('button', { name: 'Save new price' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Price changed on the server.',
+  );
+  expect(
+    screen.getByRole('dialog', { name: 'Change plan price' }),
+  ).toBeVisible();
 });
 
 it('offers a retry when the plan list cannot load', async () => {

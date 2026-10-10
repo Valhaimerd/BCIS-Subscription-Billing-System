@@ -169,15 +169,24 @@ export const createPlanSchema = z
       });
   });
 
-export const updatePlanSchema = z.object({
-  name: trimmedText.optional(),
-  priceCentavos: z.number().int().nonnegative().safe().optional(),
-  reason: z.string().trim().min(8).max(500).optional(),
-  speedMbps: z.number().int().positive().nullable().optional(),
-  channelCount: z.number().int().positive().nullable().optional(),
-  description: z.string().trim().max(1000).nullable().optional(),
-  isActive: z.boolean().optional(),
-});
+export const updatePlanSchema = z
+  .object({
+    name: trimmedText.optional(),
+    priceCentavos: z.number().int().nonnegative().safe().optional(),
+    reason: z.string().trim().min(8).max(500).optional(),
+    speedMbps: z.number().int().positive().nullable().optional(),
+    channelCount: z.number().int().positive().nullable().optional(),
+    description: z.string().trim().max(1000).nullable().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.priceCentavos !== undefined && !value.reason)
+      context.addIssue({
+        code: 'custom',
+        path: ['reason'],
+        message: 'A reason is required for a price change.',
+      });
+  });
 
 export const createSubscriberSchema = z.object({
   accountNumber: z.string().trim().min(3).max(40),

@@ -74,7 +74,7 @@ All endpoints below require a Bearer session. Read operations require `subscribe
 
 Subscriber search accepts `q`, `page` (default `1`), and `pageSize` (default `20`, maximum `100`). It searches subscriber and service account numbers, subscriber names, contacts, and addresses. Receipt and GCash-reference search joins remain owned by Task 5.
 
-Plan price changes may include an optional `reason` of 8–500 trimmed characters. The API records it with the plan update audit event; it is never applied to existing service-account rates or finalized invoices. Existing API clients may continue to omit it.
+Changing `priceCentavos` requires a trimmed `reason` of 8–500 characters. The API returns `422` if the reason is missing or invalid. Other plan updates may omit it. The reason is recorded with the plan update audit event. A new catalogue price applies when creating a new service account; existing service-account rates and finalized invoices stay fixed.
 
 Subscriber activity accepts `page` and `pageSize` (1–100) and merges status, service, invoice, adjustment, payment, reversal, and collection-route source records into a stable newest-first timeline. Each item contains only `id`, `occurredAt`, `category`, `label`, `reference`, `status`, `amountCentavos`, and `reason`. The API filters timeline categories using the signed-in user's corresponding `service.view`, `billing.view`, `payment.view`, and `collection.view` permissions; `subscriber.view` alone exposes only subscriber lifecycle events. This projects existing records rather than creating a second history store.
 

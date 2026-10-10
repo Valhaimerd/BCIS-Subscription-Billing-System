@@ -1,0 +1,316 @@
+.plan-catalogue {
+  display: grid;
+  gap: 22px;
+}
+.plan-catalogue-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.plan-catalogue-header h2 {
+  margin: 3px 0;
+  font-size: clamp(26px, 3vw, 34px);
+  letter-spacing: -0.035em;
+}
+.plan-catalogue-header p {
+  margin: 0;
+  color: #617894;
+}
+.plan-catalogue-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.plan-catalogue-actions small {
+  color: #60758d;
+  white-space: nowrap;
+}
+.plan-catalogue-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto auto;
+  gap: 10px;
+}
+.plan-catalogue-controls input,
+.plan-catalogue-controls select,
+.plan-catalogue-controls button {
+  min-height: 44px;
+  padding: 10px 13px;
+  border: 1px solid #c8d7e8;
+  border-radius: 11px;
+  background: #fff;
+  color: #254360;
+}
+.plan-catalogue-controls input {
+  min-width: 0;
+  width: 100%;
+}
+.plan-catalogue-controls button {
+  font-weight: 700;
+}
+.plan-catalogue-controls button[aria-pressed='true'] {
+  border-color: #2869c7;
+  background: #eaf3ff;
+  color: #1855a4;
+}
+.plan-type-section {
+  display: grid;
+  gap: 12px;
+}
+.plan-type-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.plan-type-heading h3 {
+  margin: 0;
+  color: #1a3453;
+  font-size: 19px;
+}
+.plan-type-heading small {
+  color: #667b92;
+}
+.plan-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.plan-catalogue-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid #d5e1ee;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(24, 53, 88, 0.07);
+}
+.plan-catalogue-card.is-inactive {
+  background: #f7f9fc;
+}
+.plan-card-top,
+.plan-card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.plan-card-code {
+  color: #54708f;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.plan-catalogue-card h4 {
+  margin: 5px 0 0;
+  color: #142f50;
+  font-size: 22px;
+  letter-spacing: -0.025em;
+}
+.plan-card-price {
+  color: #18559f;
+  font-size: 25px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.plan-card-price small {
+  display: block;
+  color: #6a7e96;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+}
+.plan-card-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.plan-card-specs span {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #edf4fb;
+  color: #315d8f;
+  font-size: 13px;
+  font-weight: 700;
+}
+.plan-card-bottom {
+  align-items: center;
+  padding-top: 13px;
+  border-top: 1px solid #e3ebf5;
+}
+.plan-card-bottom .row-actions button {
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid #b6cee8;
+  border-radius: 9px;
+  background: #fff;
+  color: #205b9f;
+  font-weight: 700;
+}
+.plan-card-bottom .row-actions button:first-child {
+  border-color: #296ac4;
+  background: #edf5ff;
+}
+.plan-register {
+  overflow: hidden;
+}
+.plan-register .table-scroll {
+  border-radius: 14px;
+}
+.plan-steps {
+  grid-template-columns: repeat(3, 1fr);
+}
+.plan-wizard {
+  width: min(100%, 920px);
+}
+.plan-price-sheet {
+  display: grid;
+  gap: 22px;
+  width: min(520px, 100%);
+  padding: 26px;
+}
+.plan-detail-sheet {
+  display: grid;
+  gap: 20px;
+  width: min(540px, 100%);
+  padding: 27px;
+}
+.plan-detail-sheet h2 {
+  margin: 5px 0;
+  color: #183253;
+  font-size: 28px;
+}
+.plan-detail-sheet header p,
+.plan-detail-note {
+  margin: 0;
+  color: #617894;
+}
+.plan-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.plan-detail-actions button {
+  min-height: 42px;
+  padding: 9px 13px;
+  border: 1px solid #b9cde4;
+  border-radius: 9px;
+  background: #fff;
+  color: #205b9f;
+  font-weight: 700;
+}
+.plan-detail-actions button:nth-child(2) {
+  border-color: #2869c7;
+  background: #2869c7;
+  color: #fff;
+}
+.plan-price-sheet h2 {
+  margin: 6px 0;
+  font-size: 25px;
+}
+.plan-price-sheet header p,
+.plan-price-fields p {
+  margin: 0;
+  color: #637c98;
+}
+.plan-price-sheet form,
+.plan-price-fields {
+  display: grid;
+  gap: 18px;
+}
+.plan-price-fields label {
+  display: grid;
+  gap: 7px;
+  color: #213b5b;
+  font-weight: 700;
+}
+.plan-price-fields input,
+.plan-price-fields textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #bcd0e6;
+  border-radius: 10px;
+  background: #fff;
+  color: #183253;
+}
+.plan-price-comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+.plan-price-comparison div {
+  display: grid;
+  gap: 5px;
+  padding: 17px;
+  border: 1px solid #d5e2f1;
+  border-radius: 12px;
+  background: #f5f9ff;
+}
+.plan-price-comparison small {
+  color: #59738f;
+}
+.plan-price-comparison strong {
+  color: #183f71;
+  font-size: 21px;
+}
+.plan-price-impact {
+  margin: 0;
+  padding: 13px 15px;
+  border-left: 3px solid #3672d4;
+  border-radius: 8px;
+  background: #ecf4ff;
+  color: #25496f;
+}
+.plan-price-reason {
+  margin: 0;
+  color: #36526e;
+}
+.plan-catalogue button:focus-visible,
+.plan-price-sheet button:focus-visible,
+.plan-price-sheet input:focus-visible,
+.plan-price-sheet textarea:focus-visible {
+  outline: 3px solid #8cb9f5;
+  outline-offset: 2px;
+}
+@media (max-width: 1050px) {
+  .plan-catalogue-controls {
+    grid-template-columns: minmax(190px, 1fr) auto auto;
+  }
+  .plan-catalogue-controls button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+@media (max-width: 760px) {
+  .plan-catalogue-header {
+    flex-direction: column;
+  }
+  .plan-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .plan-catalogue-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+  .plan-catalogue-controls input {
+    grid-column: 1 / -1;
+  }
+  .plan-catalogue-controls button {
+    grid-column: auto;
+  }
+}
+@media (max-width: 560px) {
+  .plan-catalogue-actions,
+  .plan-card-top,
+  .plan-card-bottom {
+    flex-wrap: wrap;
+  }
+  .plan-catalogue-controls {
+    grid-template-columns: 1fr;
+  }
+  .plan-catalogue-controls input,
+  .plan-catalogue-controls button {
+    grid-column: auto;
+  }
+}

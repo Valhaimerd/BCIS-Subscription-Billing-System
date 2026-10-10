@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 
-import type { DatabaseConnection } from '@bcis/database';
+import { servicePlans, type DatabaseConnection } from '@bcis/database';
 import { MasterDataService } from './master-data.js';
 
 it('stores the plan price change reason in audit history, not in plan columns', async () => {
@@ -42,6 +42,7 @@ it('stores the plan price change reason in audit history, not in plan columns', 
     priceCentavos: 85000,
     updatedAt: expect.any(Date),
   });
+  expect(db.update).toHaveBeenCalledExactlyOnceWith(servicePlans);
   expect(auditValues).toHaveBeenCalledWith({
     actorUserId: '00000000-0000-4000-8000-000000000001',
     action: 'PLAN_UPDATED',

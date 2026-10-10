@@ -26,6 +26,7 @@ The system replaces disconnected spreadsheets or manual records with one authori
 - Cashiers find an account card, enter payment details, review oldest-first allocation, then reach a receipt or a pending GCash verification result. Changed balances require another review; a retry of a direct payment uses the same request key.
 - Staff find subscribers through account cards. Authorized staff register an account through Identity → Contact and location → Billing defaults → Review.
 - A subscriber profile groups work into Overview, Services, Money, and History. Authorized staff add a service through Choose plan → Installation → Billing schedule → Review. The service save does not itself create an invoice.
+- Staff compare Internet, Cable, and Combo plan cards or switch to a compact register. Authorized staff add a plan in three steps and review a reasoned price change before saving; existing service rates and finalized invoices stay fixed.
 
 ## Intended users
 

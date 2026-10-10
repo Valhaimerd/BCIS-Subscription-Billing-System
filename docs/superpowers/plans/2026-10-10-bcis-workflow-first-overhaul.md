@@ -127,9 +127,9 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `MasterDataViews.tsx`, master-data API/service, contracts, tests and manual.
 
-- [ ] Build plan cards by type with price, speed/channels, status and real action. Keep a compact register option for administrators comparing many plans.
-- [ ] Add the three-step Add plan flow and a price-change review sheet with required reason and future-rate explanation.
-- [ ] Confirm database uniqueness and that a price change does not rewrite existing service rates or finalized invoices.
+- [x] Build plan cards by type with price, speed/channels, status, and a View plan action. Keep a compact register for comparison.
+- [x] Add the three-step Add plan flow and a price-change review sheet with required reason and future-rate explanation.
+- [x] Confirm plan-code uniqueness in the database schema and test that a price update touches only service plans; billing reads each service account's captured rate.
 
 **Done when:** Plan selection is card-based, and price-change impact is explicit before confirmation.
 

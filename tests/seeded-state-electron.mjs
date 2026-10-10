@@ -197,14 +197,52 @@ try {
 
   await page.getByRole('button', { name: 'Plans' }).click();
   await page.getByRole('heading', { name: 'Service plans' }).waitFor();
-  await page.getByRole('button', { name: 'Change price' }).first().click();
+  await page.screenshot({ path: 'output/playwright/bcis-plan-cards.png' });
+  await page.getByRole('button', { name: 'Add service plan' }).click();
+  await page.getByRole('heading', { name: 'Add a service plan' }).waitFor();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'output/playwright/bcis-plan-wizard.png' });
+  await page.setViewportSize({ width: 960, height: 640 });
+  if (
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.window.innerWidth + 1,
+    )
+  )
+    throw new Error('Plan wizard overflows horizontally at 960×640.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'View plan' }).first().click();
+  await page.getByRole('dialog', { name: 'Plan details' }).waitFor();
+  await page.screenshot({ path: 'output/playwright/bcis-plan-detail.png' });
+  await page.getByRole('button', { name: 'Change price' }).click();
   const planPriceDialog = page.getByRole('dialog', {
     name: 'Change plan price',
   });
   await planPriceDialog.waitFor();
+  await planPriceDialog.getByLabel('New monthly price (PHP)').fill('850.00');
+  await planPriceDialog
+    .getByLabel('Reason for price change')
+    .fill('Approved annual rate review');
+  await planPriceDialog.getByRole('button', { name: 'Review change' }).click();
+  await planPriceDialog
+    .getByRole('button', { name: 'Save new price' })
+    .waitFor();
   await page.screenshot({
     path: 'output/playwright/bcis-seeded-plan-price-dialog.png',
   });
+  await page.setViewportSize({ width: 960, height: 640 });
+  if (
+    await page.evaluate(
+      () =>
+        globalThis.document.documentElement.scrollWidth >
+        globalThis.window.innerWidth + 1,
+    )
+  )
+    throw new Error('Plan price review overflows horizontally at 960×640.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await planPriceDialog.getByRole('button', { name: '← Edit details' }).click();
   await planPriceDialog.getByRole('button', { name: 'Cancel' }).click();
   await planPriceDialog.waitFor({ state: 'hidden' });
 
@@ -492,13 +530,12 @@ try {
     if (role.visible.includes('Plans')) {
       await page.getByRole('button', { name: 'Plans' }).click();
       await page.getByRole('heading', { name: 'Service plans' }).waitFor();
-      if (
-        (await page
-          .getByRole('button', { name: 'Add service plan' })
-          .count()) ||
-        (await page.getByRole('button', { name: 'Change price' }).count())
-      )
+      if (await page.getByRole('button', { name: 'Add service plan' }).count())
         throw new Error(`${role.username} can see plan management actions.`);
+      await page.getByRole('button', { name: 'View plan' }).first().click();
+      if (await page.getByRole('button', { name: 'Change price' }).count())
+        throw new Error(`${role.username} can change plan prices.`);
+      await page.getByRole('button', { name: 'Close' }).click();
     }
   }
 

@@ -196,6 +196,26 @@ describe('Task 3 API contract', () => {
     expect(masterData.updatePlan).not.toHaveBeenCalled();
   });
 
+  it('requires an audit reason when changing a plan price', async () => {
+    const masterData = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: auth,
+      masterDataService: masterData,
+    });
+    applications.push(app);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/plans/00000000-0000-4000-8000-000000000010',
+      headers: { authorization: 'Bearer token' },
+      payload: { priceCentavos: 85000 },
+    });
+
+    expect(response.statusCode).toBe(422);
+    expect(masterData.updatePlan).not.toHaveBeenCalled();
+  });
+
   it('documents the Task 3 endpoint surface', async () => {
     const app = await createApp({
       checkReadiness: async () => undefined,

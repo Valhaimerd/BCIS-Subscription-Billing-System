@@ -52,18 +52,11 @@ Plans are configured only when a new offering is needed. Subscribers are registe
 Use the Owner or Administrator account.
 
 1. Select **Plans** from the left navigation.
-2. Search by plan name, code, or type; use **Plan status** and **Sort plans by price** to find the current offering. Reuse an existing active plan when it already represents the service being sold.
-3. To add a plan, select **Add service plan** and complete the compact form:
-   - **Service type:** Internet, Cable, or Combo.
-   - **Code:** a unique short business code.
-   - **Name:** the customer-facing plan name.
-   - **Monthly price (PHP):** the recurring charge.
-   - **Speed (Mbps):** applicable to Internet and Combo plans.
-   - **Channels:** applicable to Cable and Combo plans.
-4. Select **Create plan**. Internet plans ask for speed, Cable plans ask for channel count, and Combo plans ask for both.
-5. Confirm that the new plan appears in **Service plans** with an `Active` status and the correct price. The table can be sorted by price in either direction.
+2. Compare the Internet, Cable, and Combo cards. Search by name, code, or type; filter status or sort price. Select **View register** when a compact table is easier to compare. Reuse an active plan when it already represents the offer.
+3. To add a plan, select **Add service plan**. Enter the service type, unique code, and name. Continue to monthly price and the relevant speed or channel fields, then review the offer and select **Create plan**.
+4. Confirm that the new card appears with an `Active` status and the correct monthly price.
 
-Use **Change price** only for an approved price change. In the review dialog, enter the new monthly price and approval reason; the reason is retained in audit history. The changed plan price affects future service accounts; existing service-account rates and finalized invoices retain their historical amounts. Use **Deactivate** when a plan must no longer be offered to new service accounts.
+Select **View plan** to see its full details. For an approved price change, select **Change price**, enter a new monthly price and reason, review the old and new prices, then select **Save new price**. The reason is retained in audit history. The new catalogue price applies to services added afterward; existing service rates and finalized invoices stay fixed. Use **Deactivate** when the plan must no longer be offered to new service accounts.
 
 ### Step 2 — Register the subscriber
 
