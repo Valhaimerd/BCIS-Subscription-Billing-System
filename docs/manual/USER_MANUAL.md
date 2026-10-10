@@ -6,6 +6,8 @@ Start the desktop client, enter the assigned username and password, then select 
 
 Each workspace keeps one page title and purpose line above its work area. The compact top bar stays available for subscriber search and session controls, with an opaque background so scrolling content does not show through it.
 
+**Today** starts with a recommended action and a small set of work cards based on your permissions. Select a Receivables, Payments, or Field collections card to open a focused detail panel; select its action to continue into that workspace. The panel closes with **Close details**, `Esc`, or the shaded area. Staff with reporting access can change the dashboard date range, see the billing-versus-collection chart, and expand **View monthly figures** for the chart values. Open **Reports** for detailed financial breakdowns. Cashiers see **Start a payment** when permitted, with customer and payment shortcuts beneath it.
+
 For a complete laboratory walkthrough, sign in as `owner`. In normal operations, use the account appropriate to the work:
 
 | Role                  | Typical work                                                       |

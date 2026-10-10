@@ -85,7 +85,7 @@ describe('DashboardView', () => {
     });
     expect(
       await screen.findByRole('heading', {
-        name: 'Billing, collections, and follow-up',
+        name: 'Review the month at a glance',
       }),
     ).toBeVisible();
     await waitFor(() =>
@@ -110,6 +110,7 @@ describe('DashboardView', () => {
         asOf: expect.any(String),
       }),
     );
+    await user.click(screen.getByText('View monthly figures'));
     expect(
       screen.getByRole('table', {
         name: 'Monthly billing and collection values',
@@ -157,15 +158,15 @@ describe('DashboardView', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
-  it('puts the priority queue and decision metrics before the trend chart', async () => {
+  it('puts the next action and work cards before the trend chart', async () => {
     renderHome(['report.view', 'receivable.view'], {
       ...dashboard,
       alerts: [{ label: 'Accounts for follow-up', count: 2 }],
     });
     await screen.findByRole('heading', { name: 'Billing versus collection' });
     const sections = [
-      screen.getByRole('heading', { name: 'Needs attention' }),
-      screen.getByRole('region', { name: 'Management indicators' }),
+      screen.getByRole('region', { name: 'Recommended next action' }),
+      screen.getByRole('region', { name: 'Explore current work' }),
       screen.getByRole('heading', { name: 'Billing versus collection' }),
     ];
     expect(sections[0]!.compareDocumentPosition(sections[1]!)).toBe(
@@ -179,6 +180,8 @@ describe('DashboardView', () => {
   it('clears stale analytics and explains an incomplete date range', async () => {
     const user = userEvent.setup();
     const { dashboardRequest } = renderHome();
+    await screen.findByRole('heading', { name: 'Billing versus collection' });
+    await user.click(screen.getByText('View monthly figures'));
     await screen.findByRole('table', {
       name: 'Monthly billing and collection values',
     });
@@ -196,14 +199,16 @@ describe('DashboardView', () => {
     expect(dashboardRequest).toHaveBeenCalledTimes(requestCount);
   });
 
-  it('shows an all-clear queue and only authorized drill-downs', async () => {
+  it('shows a report action without a forbidden receivables route', async () => {
     const user = userEvent.setup();
     const { onNavigate } = renderHome(['report.view'], {
       ...dashboard,
       alerts: [{ label: 'Accounts for follow-up', count: 0 }],
     });
     expect(
-      await screen.findByText('All caught up. No overdue follow-up actions.'),
+      await screen.findByRole('heading', {
+        name: 'Review the month at a glance',
+      }),
     ).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Review receivables' }),

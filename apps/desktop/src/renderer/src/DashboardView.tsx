@@ -1,12 +1,17 @@
-import type {
-  DashboardDto,
-  PaymentSummaryDto,
-  PermissionCode,
-} from '@bcis/contracts';
-import { ArrowRight, CircleCheck, Search, Users, Wallet } from 'lucide-react';
+import type { DashboardDto, PermissionCode } from '@bcis/contracts';
+import {
+  ArrowRight,
+  CreditCard,
+  Map,
+  Search,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { AppViewId } from './navigation';
+import { DetailSheet } from './ui/DetailSheet';
+import { WorkCard } from './ui/WorkCard';
 
 type DashboardViewProps = {
   permissions: readonly PermissionCode[];
@@ -52,16 +57,18 @@ export function DashboardView({
   const canViewSubscribers = permissions.includes('subscriber.view');
   const canViewPayments = permissions.includes('payment.view');
   const canViewReceivables = permissions.includes('receivable.view');
+  const canViewCollections = permissions.includes('collection.view');
+  const canCreatePayments = permissions.includes('payment.create');
   const [period, setPeriod] = useState(initialPeriod);
   const [dashboard, setDashboard] = useState<DashboardDto | null>(null);
   const [paymentCount, setPaymentCount] = useState(0);
-  const [recentRolePayments, setRecentRolePayments] = useState<
-    PaymentSummaryDto[]
-  >([]);
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeDetail, setActiveDetail] = useState<
+    'receivables' | 'payments' | 'collections' | null
+  >(null);
 
   useEffect(() => {
     let current = true;
@@ -104,14 +111,11 @@ export function DashboardView({
             .bcis!.payments.list({
               q: '',
               page: 1,
-              pageSize: 6,
+              pageSize: 1,
               status: 'POSTED',
             })
             .then((result) => {
-              if (current) {
-                setPaymentCount(result.total);
-                setRecentRolePayments(result.items.slice(0, 5));
-              }
+              if (current) setPaymentCount(result.total);
             }),
         );
       void Promise.all(requests)
@@ -127,8 +131,10 @@ export function DashboardView({
     };
   }, [canViewPayments, canViewReports, canViewSubscribers, period, refreshKey]);
 
-  const setDate = (key: 'from' | 'to', value: string) =>
+  const setDate = (key: 'from' | 'to', value: string) => {
+    setActiveDetail(null);
     setPeriod((current) => ({ ...current, [key]: value }));
+  };
 
   return (
     <div className="data-layout dashboard-view">
@@ -136,7 +142,10 @@ export function DashboardView({
         <div className="dashboard-error form-error" role="alert">
           {error}
           <button
-            onClick={() => setRefreshKey((current) => current + 1)}
+            onClick={() => {
+              setActiveDetail(null);
+              setRefreshKey((current) => current + 1);
+            }}
             type="button"
           >
             Retry
@@ -145,15 +154,11 @@ export function DashboardView({
       ) : null}
       {canViewReports ? (
         <>
-          <section className="dashboard-hero data-card">
-            <div className="dashboard-hero-copy">
-              <span>Financial overview</span>
-              <h2>Billing, collections, and follow-up</h2>
-              <p>
-                Billing follows invoice dates. Collections follow payment dates,
-                so each series can describe different activity.
-              </p>
-            </div>
+          <section
+            className="dashboard-period-bar"
+            aria-label="Dashboard period"
+          >
+            <p>Showing activity for the selected period</p>
             <div className="dashboard-period-controls">
               <label>
                 From date
@@ -179,215 +184,302 @@ export function DashboardView({
             </div>
           ) : dashboard ? (
             <>
-              <section className="dashboard-attention data-card">
-                <div className="card-heading">
-                  <div>
-                    <span>Priority queue</span>
-                    <h2>Needs attention</h2>
-                  </div>
-                  {canViewReceivables ? (
-                    <button
-                      className="text-action"
-                      onClick={() => onNavigate('Receivables')}
-                      type="button"
-                    >
-                      Open receivables{' '}
-                      <ArrowRight aria-hidden="true" size={16} />
-                    </button>
-                  ) : null}
-                </div>
-                {dashboard.alerts.some((alert) => alert.count > 0) ? (
-                  <ul className="attention-items">
-                    {dashboard.alerts
-                      .filter((alert) => alert.count > 0)
-                      .map((alert) => (
-                        <li key={alert.label}>
-                          <span>{alert.label}</span>
-                          <strong>{alert.count}</strong>
-                        </li>
-                      ))}
-                  </ul>
-                ) : (
-                  <p className="all-clear">
-                    <CircleCheck aria-hidden="true" size={18} />
-                    All caught up. No overdue follow-up actions.
-                  </p>
-                )}
-              </section>
               <section
-                className="indicator-grid"
-                aria-label="Management indicators"
+                className="today-feature"
+                aria-label="Recommended next action"
               >
-                {[
-                  [
-                    'Current receivable',
-                    money(dashboard.currentReceivableCentavos),
-                  ],
-                  [
-                    'Overdue receivable',
-                    money(dashboard.overdueReceivableCentavos),
-                  ],
-                  ['Overdue subscribers', String(dashboard.overdueSubscribers)],
-                  [
-                    'Accounts for follow-up',
-                    String(dashboard.followUpAccounts),
-                  ],
-                  ['Billed', money(dashboard.billedCentavos)],
-                  ['Collected', money(dashboard.collectedCentavos)],
-                ].map(([label, value]) => (
-                  <article className="indicator" key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                    <small>As of {dashboard.asOf}</small>
-                  </article>
-                ))}
-              </section>
-              <TrendChart dashboard={dashboard} />
-              <div className="dashboard-grid report-dashboard-grid">
-                <SummaryCard title="Payment mix" eyebrow="Posted collections">
-                  <ul className="summary-list">
-                    {dashboard.paymentMethods.map((item) => (
-                      <li key={item.method}>
-                        <span>
-                          {item.method.replace('_', ' ')} · {item.count}
-                        </span>
-                        <strong>{money(item.amountCentavos)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                </SummaryCard>
-                <SummaryCard
-                  title="Aging"
-                  eyebrow={`Accounts receivable · as of ${dashboard.asOf}`}
-                >
-                  <ul className="summary-list">
-                    {Object.entries(dashboard.aging).map(([bucket, amount]) => (
-                      <li key={bucket}>
-                        <span>
-                          {bucket.replace('_', '–').replace('90–PLUS', '90+')}
-                        </span>
-                        <strong>{money(amount)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                </SummaryCard>
-                <SummaryCard
-                  title="Collection accountability"
-                  eyebrow="Collector remittance"
-                >
-                  {dashboard.collectors.length ? (
-                    <ul className="summary-list">
-                      {dashboard.collectors.map((item) => (
-                        <li key={item.collector}>
-                          <span>
-                            {item.collector}
-                            <small>
-                              Remitted {money(item.remittedCentavos)}
-                            </small>
-                          </span>
-                          <strong>{money(item.collectedCentavos)}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="empty-state">
-                      No collection batches in this period.
-                    </div>
-                  )}
-                </SummaryCard>
-                <SummaryCard title="Recent payments" eyebrow="Cashier activity">
-                  <ul className="summary-list recent-payments">
-                    {dashboard.recentPayments.map((item, index) => (
-                      <li key={`${item.receiptNumber ?? 'payment'}-${index}`}>
-                        <span>
-                          {item.subscriberName}
-                          <small>
-                            {item.paymentDate.slice(0, 10)} · {item.method}
-                          </small>
-                        </span>
-                        <strong>{money(item.amountCentavos)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                </SummaryCard>
-              </div>
-              <div className="dashboard-links">
-                <button onClick={() => onNavigate('Reports')} type="button">
-                  Explore reports <ArrowRight aria-hidden="true" size={16} />
-                </button>
-                {canViewReceivables ? (
+                <div>
+                  <span className="today-feature-label">Your next move</span>
+                  <h2>
+                    {canViewReceivables && dashboard.followUpAccounts > 0
+                      ? `${dashboard.followUpAccounts} accounts need follow-up`
+                      : 'Review the month at a glance'}
+                  </h2>
+                  <p>
+                    {canViewReceivables && dashboard.followUpAccounts > 0
+                      ? `There is ${money(dashboard.overdueReceivableCentavos)} overdue as of ${dashboard.asOf}. Start with the accounts that need attention.`
+                      : 'See billed, collected, and overdue work from the same selected period.'}
+                  </p>
                   <button
-                    onClick={() => onNavigate('Receivables')}
+                    onClick={() =>
+                      onNavigate(
+                        canViewReceivables && dashboard.followUpAccounts > 0
+                          ? 'Receivables'
+                          : 'Reports',
+                      )
+                    }
                     type="button"
                   >
-                    Review receivables{' '}
-                    <ArrowRight aria-hidden="true" size={16} />
+                    {canViewReceivables && dashboard.followUpAccounts > 0
+                      ? 'Open follow-up work'
+                      : 'Explore reports'}
+                    <ArrowRight aria-hidden="true" size={17} />
                   </button>
-                ) : null}
-              </div>
+                </div>
+                <dl className="today-feature-figure">
+                  <div>
+                    <dt>Collected</dt>
+                    <dd>{money(dashboard.collectedCentavos)}</dd>
+                  </div>
+                  <div>
+                    <dt>Billed</dt>
+                    <dd>{money(dashboard.billedCentavos)}</dd>
+                  </div>
+                  <div className="today-feature-period">
+                    <dt>Period</dt>
+                    <dd>
+                      {dashboard.from} to {dashboard.to}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+              {canViewReceivables || canViewPayments || canViewCollections ? (
+                <section
+                  className="today-work-grid"
+                  aria-label="Explore current work"
+                >
+                  {canViewReceivables ? (
+                    <WorkCard
+                      action="See aging and next steps"
+                      context={`${money(dashboard.overdueReceivableCentavos)} overdue · ${dashboard.overdueSubscribers} subscribers`}
+                      icon={CreditCard}
+                      onClick={() => setActiveDetail('receivables')}
+                      status={
+                        dashboard.followUpAccounts > 0
+                          ? `${dashboard.followUpAccounts} for follow-up`
+                          : undefined
+                      }
+                      title="Receivables"
+                      tone={
+                        dashboard.followUpAccounts > 0 ? 'attention' : 'default'
+                      }
+                    />
+                  ) : null}
+                  {canViewPayments ? (
+                    <WorkCard
+                      action="See payment detail"
+                      context={`${money(dashboard.collectedCentavos)} collected in this period`}
+                      icon={Wallet}
+                      onClick={() => setActiveDetail('payments')}
+                      title="Payments"
+                    />
+                  ) : null}
+                  {canViewCollections ? (
+                    <WorkCard
+                      action="See collector detail"
+                    context={`${dashboard.collectors.length} collector ${dashboard.collectors.length === 1 ? 'summary' : 'summaries'} shown for this period`}
+                      icon={Map}
+                      onClick={() => setActiveDetail('collections')}
+                      title="Field collections"
+                    />
+                  ) : null}
+                </section>
+              ) : null}
+              <TrendChart dashboard={dashboard} />
             </>
           ) : null}
         </>
       ) : (
-        <section className="role-home data-card">
+        <section className="role-home">
           <span>Welcome back</span>
           <h2>Your work</h2>
           <p>Open the records and actions available to your role.</p>
+          {canCreatePayments && canViewPayments ? (
+            <div className="role-home-primary">
+              <WorkCard
+                action="Receive payment"
+                context="Find a subscriber and review the allocation before posting."
+                icon={Wallet}
+                onClick={() => onNavigate('Payments')}
+                title="Start a payment"
+              />
+            </div>
+          ) : null}
           {loading ? (
             <div className="empty-state" role="status">
               Loading your workspace…
             </div>
           ) : null}
-          <div className="role-home-actions">
-            {canViewSubscribers ? (
-              <button onClick={() => onNavigate('Subscribers')} type="button">
-                <Users aria-hidden="true" />
-                <span>
-                  Find subscribers
-                  <small>{subscriberCount} accounts available</small>
-                </span>
-                <ArrowRight aria-hidden="true" />
-              </button>
-            ) : null}
-            {canViewPayments ? (
-              <section className="role-home-payment-card">
-                <button onClick={() => onNavigate('Payments')} type="button">
-                  <Wallet aria-hidden="true" />
-                  <span>
-                    Payment history<small>{paymentCount} posted payments</small>
-                  </span>
-                  <ArrowRight aria-hidden="true" />
-                </button>
-                {recentRolePayments.length ? (
-                  <ul className="summary-list recent-payments">
-                    {recentRolePayments.map((payment) => (
-                      <li key={payment.id}>
-                        <span>
-                          {payment.subscriberName}
-                          <small>
-                            {payment.paymentDate.slice(0, 10)} ·{' '}
-                            {payment.method}
-                          </small>
-                        </span>
-                        <strong>{money(payment.amountCentavos)}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </section>
-            ) : null}
-            {permissions.includes('service.view') ? (
-              <button onClick={() => onNavigate('Services')} type="button">
-                <Search aria-hidden="true" />
-                <span>
-                  Service work<small>Review subscriber service status</small>
-                </span>
-                <ArrowRight aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
+          {!loading &&
+          !error &&
+          !canViewSubscribers &&
+          !canViewPayments &&
+          !permissions.includes('service.view') ? (
+            <p className="role-home-empty">
+              No workspaces are assigned to this account. Ask your system
+              administrator for access.
+            </p>
+          ) : null}
+          {!loading && !error ? (
+            <div className="today-work-grid role-work-grid">
+              {canViewSubscribers ? (
+                <WorkCard
+                  action="Find subscribers"
+                  context={`${subscriberCount} accounts available`}
+                  icon={Users}
+                  onClick={() => onNavigate('Subscribers')}
+                  title="Customers"
+                />
+              ) : null}
+              {canViewPayments ? (
+                <WorkCard
+                  action="Open payments"
+                  context={`${paymentCount} posted payments`}
+                  icon={Wallet}
+                  onClick={() => onNavigate('Payments')}
+                  title="Payment history"
+                />
+              ) : null}
+              {permissions.includes('service.view') ? (
+                <WorkCard
+                  action="Open services"
+                  context="Review subscriber service status."
+                  icon={Search}
+                  onClick={() => onNavigate('Services')}
+                  title="Service work"
+                />
+              ) : null}
+            </div>
+          ) : null}
         </section>
       )}
+      {dashboard && activeDetail === 'receivables' ? (
+        <DetailSheet
+          description={`Balances as of ${dashboard.asOf}`}
+          onClose={() => setActiveDetail(null)}
+          title="Receivables detail"
+        >
+          <div className="detail-sheet-stat">
+            <span>Overdue balance</span>
+            <strong>{money(dashboard.overdueReceivableCentavos)}</strong>
+            <small>{dashboard.overdueSubscribers} overdue subscribers</small>
+          </div>
+          <p className="detail-sheet-note">
+            Current balance: {money(dashboard.currentReceivableCentavos)}.{' '}
+            {dashboard.alerts.find(
+              (alert) => alert.label === 'Suspension candidates',
+            )?.count ?? 0}{' '}
+            accounts meet the current suspension threshold.
+          </p>
+          <h3>Balance by invoice age</h3>
+          <ul className="summary-list">
+            {Object.entries(dashboard.aging).map(([bucket, amount]) => (
+              <li key={bucket}>
+                <span>
+                  {bucket.replace('_', '–').replace('90–PLUS', '90+')}
+                </span>
+                <strong>{money(amount)}</strong>
+              </li>
+            ))}
+          </ul>
+          <button
+            className="primary-action detail-sheet-action"
+            onClick={() => {
+              setActiveDetail(null);
+              onNavigate('Receivables');
+            }}
+            type="button"
+          >
+            Open receivables
+            <ArrowRight aria-hidden="true" size={17} />
+          </button>
+        </DetailSheet>
+      ) : null}
+      {dashboard && activeDetail === 'payments' ? (
+        <DetailSheet
+          description={`Posted collections from ${dashboard.from} to ${dashboard.to}`}
+          onClose={() => setActiveDetail(null)}
+          title="Payment detail"
+        >
+          <div className="detail-sheet-stat">
+            <span>Collected</span>
+            <strong>{money(dashboard.collectedCentavos)}</strong>
+            <small>Based on payment date</small>
+          </div>
+          <h3>By payment method</h3>
+          {dashboard.paymentMethods.length ? (
+            <ul className="summary-list">
+              {dashboard.paymentMethods.map((item) => (
+                <li key={item.method}>
+                  <span>
+                    {item.method.replace('_', ' ')} · {item.count}
+                  </span>
+                  <strong>{money(item.amountCentavos)}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No posted collections in this period.</p>
+          )}
+          {dashboard.recentPayments.length ? (
+            <>
+              <h3>Recent payments</h3>
+              <ul className="summary-list">
+                {dashboard.recentPayments.slice(0, 3).map((item, index) => (
+                  <li key={`${item.receiptNumber ?? 'payment'}-${index}`}>
+                    <span>
+                      {item.subscriberName}
+                      <small>
+                        {item.paymentDate.slice(0, 10)} · {item.method}
+                      </small>
+                    </span>
+                    <strong>{money(item.amountCentavos)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          <button
+            className="primary-action detail-sheet-action"
+            onClick={() => {
+              setActiveDetail(null);
+              onNavigate('Payments');
+            }}
+            type="button"
+          >
+            Open payments
+            <ArrowRight aria-hidden="true" size={17} />
+          </button>
+        </DetailSheet>
+      ) : null}
+      {dashboard && activeDetail === 'collections' ? (
+        <DetailSheet
+          description={`Collector activity from ${dashboard.from} to ${dashboard.to}`}
+          onClose={() => setActiveDetail(null)}
+          title="Field collection detail"
+        >
+          <h3>Collected and remitted</h3>
+          {dashboard.collectors.length ? (
+            <ul className="summary-list">
+              {dashboard.collectors.map((item) => (
+                <li key={item.collector}>
+                  <span>
+                    {item.collector}
+                    <small>
+                      Remitted {money(item.remittedCentavos)} · Difference{' '}
+                      {money(item.differenceCentavos)}
+                    </small>
+                  </span>
+                  <strong>{money(item.collectedCentavos)}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No collection batches in this period.</p>
+          )}
+          <button
+            className="primary-action detail-sheet-action"
+            onClick={() => {
+              setActiveDetail(null);
+              onNavigate('Collections');
+            }}
+            type="button"
+          >
+            Open collections
+            <ArrowRight aria-hidden="true" size={17} />
+          </button>
+        </DetailSheet>
+      ) : null}
     </div>
   );
 }
@@ -504,57 +596,40 @@ function TrendChart({ dashboard }: { dashboard: DashboardDto }) {
               </g>
             ))}
           </svg>
-          <table
-            className="trend-table"
-            aria-label="Monthly billing and collection values"
-          >
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>Billed</th>
-                <th>Collected</th>
-                <th>Difference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {points.map((point) => (
-                <tr key={point.period}>
-                  <th scope="row">{point.period}</th>
-                  <td>{money(point.billedCentavos)}</td>
-                  <td>{money(point.collectedCentavos)}</td>
-                  <td>{money(point.differenceCentavos)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <details className="trend-data">
+            <summary>View monthly figures</summary>
+            <div className="table-scroll">
+              <table
+                className="trend-table"
+                aria-label="Monthly billing and collection values"
+              >
+                <thead>
+                  <tr>
+                    <th>Month</th>
+                    <th>Billed</th>
+                    <th>Collected</th>
+                    <th>Difference</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {points.map((point) => (
+                    <tr key={point.period}>
+                      <th scope="row">{point.period}</th>
+                      <td>{money(point.billedCentavos)}</td>
+                      <td>{money(point.collectedCentavos)}</td>
+                      <td>{money(point.differenceCentavos)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </>
       ) : (
         <div className="empty-state">
           No billing or payment activity in this period.
         </div>
       )}
-    </section>
-  );
-}
-
-function SummaryCard({
-  eyebrow,
-  title,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="data-card">
-      <div className="card-heading">
-        <div>
-          <span>{eyebrow}</span>
-          <h2>{title}</h2>
-        </div>
-      </div>
-      {children}
     </section>
   );
 }

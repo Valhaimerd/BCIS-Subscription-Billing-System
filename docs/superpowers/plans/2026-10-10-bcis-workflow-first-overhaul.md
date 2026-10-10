@@ -67,7 +67,9 @@ Use the existing names until a slice actually extracts a component. The paths un
 
 ## Phase 1 — Foundations that make every later slice coherent
 
-The first live slice implements Workbench tokens and the permission-filtered shell on branch `feature/workflow-first-shell`. It moves the collapse control into the sidebar, shows supported destinations without nested group toggles, and preserves the saved icon-rail preference. Shared work cards, sheets, wizard frame, and role journey changes remain separate slices below.
+The first live slice implements Workbench tokens and the permission-filtered shell on branch `feature/workflow-first-shell`. It moves the collapse control into the sidebar, shows supported destinations without nested group toggles, and preserves the saved icon-rail preference.
+
+The second slice adds reusable actionable work cards and a focused detail sheet to Today. It uses existing permission-filtered dashboard data, keeps a single recommended action visible, and moves detailed figures into focused sheets and Reports. The cashier payment flow and reusable wizard frame remain the next vertical slice.
 
 ### Task 1: Tokens, interaction components, and real clickable controls
 
@@ -75,7 +77,7 @@ The first live slice implements Workbench tokens and the permission-filtered she
 
 - [ ] Write component tests for filled primary, tinted secondary, tertiary, destructive, disabled-explanation, card-as-link/button, keyboard focus, and sheet/modal focus return.
 - [ ] Introduce color/spacing/type/radius/elevation/motion tokens from the spec. Check text/control contrast and target sizes in actual rendered states.
-- [ ] Build a work-card component with title, context, status, and real action. Static cards must have no pointer cursor or hover lift.
+- [x] Build a work-card component with title, context, optional status, and real action. Static cards retain their existing non-interactive styling; the reusable work card is always a button.
 - [ ] Build a reusable side sheet for record detail and a full-page wizard frame with step title, progress, Back/Continue, errors, review, and unsaved-exit handling.
 - [ ] Verify clicks, Enter/Space, Escape, background scroll/focus, and reduced motion in Electron.
 
