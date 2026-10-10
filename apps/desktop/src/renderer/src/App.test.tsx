@@ -121,6 +121,7 @@ function renderApp(current: DesktopSession | null = ownerSession) {
       proof: vi.fn(),
     },
     collections: {
+      preview: vi.fn(),
       list: vi.fn(async () => ({ items: [], page: 1, pageSize: 50, total: 0 })),
       get: vi.fn(),
       create: vi.fn(),

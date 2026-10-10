@@ -2,6 +2,7 @@ import type {
   BillingCycleDto,
   CollectionBatchDetailDto,
   CollectionBatchSummaryDto,
+  CollectionRoutePreviewDto,
   InvoiceDetailDto,
   InvoiceSummaryDto,
   LedgerEntryDto,
@@ -146,6 +147,11 @@ export interface DesktopApi {
       status?: string;
     }) => Promise<Paginated<CollectionBatchSummaryDto>>;
     get: (id: string) => Promise<CollectionBatchDetailDto>;
+    preview: (input: {
+      collectorId: string;
+      collectionAreaId: string;
+      batchDate: string;
+    }) => Promise<CollectionRoutePreviewDto>;
     create: (
       input: Record<string, unknown>,
     ) => Promise<CollectionBatchDetailDto>;

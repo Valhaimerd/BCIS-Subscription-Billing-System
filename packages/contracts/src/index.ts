@@ -540,7 +540,25 @@ export const createCollectionBatchSchema = z.object({
   collectorId: z.uuid(),
   collectionAreaId: z.uuid(),
   batchDate: z.iso.date(),
+  selectedServiceAccountIds: z.array(z.uuid()).min(1).optional(),
 });
+export const collectionRoutePreviewSchema = createCollectionBatchSchema.omit({
+  selectedServiceAccountIds: true,
+});
+export interface CollectionRoutePreviewDto {
+  accounts: {
+    serviceAccountId: string;
+    subscriberName: string;
+    subscriberAccountNumber: string;
+    serviceAccountNumber: string;
+    routeAddress: string;
+    currentBillCentavos: number;
+    arrearsCentavos: number;
+    totalDueCentavos: number;
+  }[];
+  accountCount: number;
+  expectedReceivableCentavos: number;
+}
 export const remittanceSchema = z.object({
   amountCentavos: z.number().int().nonnegative().safe(),
   notes: z.string().trim().max(1000).optional(),
@@ -584,6 +602,8 @@ export interface CollectionBatchSummaryDto extends CollectionBatchTotalsDto {
 }
 export interface CollectionBatchDetailDto extends CollectionBatchSummaryDto {
   accounts: BatchAccountDto[];
+  history?: { action: string; actorName: string | null; occurredAt: string }[];
+  remittanceReason?: string | null;
 }
 
 export const agingBuckets = [

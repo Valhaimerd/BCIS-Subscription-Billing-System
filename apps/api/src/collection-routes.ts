@@ -1,5 +1,6 @@
 import {
   collectionBatchListQuerySchema,
+  collectionRoutePreviewSchema,
   createCollectionBatchSchema,
   reconciliationSchema,
   remittanceSchema,
@@ -37,6 +38,27 @@ export async function registerCollectionRoutes(
         message: 'Collection batches loaded.',
         data: await collections.list(
           collectionBatchListQuerySchema.parse(request.query),
+        ),
+      };
+    },
+  );
+
+  app.post(
+    '/api/v1/collection-batches/preview',
+    {
+      schema: {
+        ...protectedRoute,
+        tags: ['Collections'],
+        summary: 'Preview eligible route accounts before issuing a batch',
+      },
+    },
+    async (request) => {
+      await authorize(request.headers.authorization, 'collection.reconcile');
+      return {
+        success: true,
+        message: 'Collection route preview loaded.',
+        data: await collections.preview(
+          collectionRoutePreviewSchema.parse(request.body),
         ),
       };
     },

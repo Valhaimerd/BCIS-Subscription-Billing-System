@@ -163,14 +163,14 @@ The system blocks reuse of an existing GCash reference. When a duplicate warning
 Use the Collection Supervisor or Owner account. Subscribers must already have a compatible collection area and collector assignment.
 
 1. Select **Collections**.
-2. Under **Generate collection batch**, choose the **Collector**, **Collection area**, and **Route date**.
-3. Select **Generate route sheet**.
-4. In **Collection batches**, review the collector, area, assigned account count, expected amount, current status, and **Next step**. Select the batch date or press Enter to open its route. An empty route means no assigned active services matched that collector and area.
+2. Select **Prepare route**, choose the **Collector**, **Collection area**, and **Route date**, then select **Review accounts**.
+3. Review the eligible account cards. Clear any account that should not be assigned today, select **Review route**, then **Issue collection route**. The server checks the selection again before freezing the route.
+4. Use the **Prepare**, **In field**, and **Reconcile** lanes to find the batch's next action. Each card shows the collector, area, account count, expected amount, collected amount, and remitted amount. Select a card to open it. **Search full register and closed batches** opens the detailed register and closed evidence when needed.
 5. Follow the highlighted lifecycle step. Only the permitted next action is shown to staff with collection permissions; read-only staff can still review and print the route.
 6. Select **Start batch**. Its status becomes `IN PROGRESS`.
-7. For each collected account, select **Record**, enter the amount and method, and select **Post collection**. A submitted GCash proof remains pending and is not a posted receipt; an authorized verifier must approve or reject it before the batch can be submitted.
+7. For each collected account card, select **Record collection**, enter the amount and method, and select **Post collection**. A submitted GCash proof remains pending and is not a posted receipt; an authorized verifier must approve or reject it before the batch can be submitted. **View full account register** exposes the printable detail table.
 8. After recording the route results and resolving pending proofs, select **Submit batch**.
-9. Under **Record Cash remittance**, enter the Cash actually turned over by the collector and select **Record remittance**.
+9. Under **Record Cash remittance**, enter the Cash actually turned over by the collector. The projected shortage or overage appears as you type. If it differs from collected Cash, enter a reason, then select **Record remittance**.
 10. Review **Cash collected**, **Cash remitted**, and **Difference**:
 
 - zero means balanced;
@@ -179,6 +179,8 @@ Use the Collection Supervisor or Owner account. Subscribers must already have a 
 
 11. Select **Confirm reconciliation** and confirm the displayed signed difference in the review dialog.
 12. Select **Confirm and close batch**, then confirm the close dialog to finish the batch.
+
+Closed batches are read-only. Open a closed batch from the full register to review its frozen account cards, recorded totals, remittance reason, and **View batch history** audit events.
 
 The required lifecycle is `OPEN → IN PROGRESS → SUBMITTED → REMITTED → RECONCILED → CLOSED`. Shortages and overages remain recorded and are never silently forced to zero.
 

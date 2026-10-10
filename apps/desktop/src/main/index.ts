@@ -213,6 +213,12 @@ ipcMain.handle('collections:list', (_event, query: Record<string, unknown>) => {
 ipcMain.handle('collections:get', (_event, id: string) =>
   authClient.data(`/collection-batches/${id}`),
 );
+ipcMain.handle('collections:preview', (_event, input) =>
+  authClient.data('/collection-batches/preview', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }),
+);
 ipcMain.handle('collections:create', (_event, input) =>
   authClient.data('/collection-batches', {
     method: 'POST',

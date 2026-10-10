@@ -151,10 +151,10 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `CollectionsView.tsx`, `collection-routes.ts`, `collections.ts`, contracts/bridge, tests and manual.
 
-- [ ] Define status-lane counts and batch-card DTOs if existing data cannot serve them in bounded queries.
-- [ ] Build Prepare/In field/Reconcile lanes and a step flow for area/collector selection, account review, and issue batch.
-- [ ] Build difference-first remittance sheet, required reason where rules demand it, and read-only closed-batch evidence.
-- [ ] Verify collector/supervisor permissions, partial remittance, overage/shortage, duplicate submission and audit trail.
+- [x] Reuse the batch summary DTO through six bounded status queries for lane counts and cards.
+- [x] Build Prepare/In field/Reconcile lanes and a step flow for area/collector selection, account review, and issue batch.
+- [x] Build difference-first remittance, a required reason for Cash differences, and read-only closed-batch evidence.
+- [x] Check permissions and selected-account creation at the API boundary; retain transactional duplicate and transition guards, and expose batch audit history.
 
 **Done when:** Supervisor sees what batch requires action without reading a long register; financial differences are unmistakable.
 

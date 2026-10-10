@@ -120,16 +120,19 @@ The allocation preview now returns a `fingerprint` for the account's open invoic
 
 All endpoints require a Bearer session. Reads require `collection.view`; generation, transitions, remittance, reconciliation, and closure require `collection.reconcile`.
 
-| Method | Path                                        | Purpose                                                         |
-| ------ | ------------------------------------------- | --------------------------------------------------------------- |
-| `GET`  | `/api/v1/collection-batches`                | Search batches with calculated collection/remittance totals     |
-| `POST` | `/api/v1/collection-batches`                | Generate a frozen route sheet from current assignments/balances |
-| `GET`  | `/api/v1/collection-batches/:id`            | Read the route snapshot, linked payments, and reconciliation    |
-| `POST` | `/api/v1/collection-batches/:id/start`      | Move an OPEN batch to IN_PROGRESS                               |
-| `POST` | `/api/v1/collection-batches/:id/submit`     | Submit an in-progress batch after pending GCash is resolved     |
-| `POST` | `/api/v1/collection-batches/:id/remittance` | Record the collector's exact Cash remittance                    |
-| `POST` | `/api/v1/collection-batches/:id/reconcile`  | Confirm the currently visible shortage/overage                  |
-| `POST` | `/api/v1/collection-batches/:id/close`      | Authoritatively close a reconciled batch                        |
+| Method | Path                                        | Purpose                                                           |
+| ------ | ------------------------------------------- | ----------------------------------------------------------------- |
+| `GET`  | `/api/v1/collection-batches`                | Search batches with calculated collection/remittance totals       |
+| `POST` | `/api/v1/collection-batches/preview`        | Read eligible assigned accounts and current balances before issue |
+| `POST` | `/api/v1/collection-batches`                | Generate a frozen route sheet from current assignments/balances   |
+| `GET`  | `/api/v1/collection-batches/:id`            | Read the route snapshot, linked payments, and reconciliation      |
+| `POST` | `/api/v1/collection-batches/:id/start`      | Move an OPEN batch to IN_PROGRESS                                 |
+| `POST` | `/api/v1/collection-batches/:id/submit`     | Submit an in-progress batch after pending GCash is resolved       |
+| `POST` | `/api/v1/collection-batches/:id/remittance` | Record the collector's exact Cash remittance                      |
+| `POST` | `/api/v1/collection-batches/:id/reconcile`  | Confirm the currently visible shortage/overage                    |
+| `POST` | `/api/v1/collection-batches/:id/close`      | Authoritatively close a reconciled batch                          |
+
+The preview accepts `collectorId`, `collectionAreaId`, and `batchDate` and requires `collection.reconcile`. It returns eligible account cards and totals without creating a batch. Creation accepts optional `selectedServiceAccountIds` (one or more UUIDs); the server rechecks eligibility and rejects stale selections with `409`. Older callers that omit the selection retain the full-route behavior. A Cash remittance that differs from Cash collected requires a nonempty `notes` reason. Batch detail includes `history` events (action, actor name, timestamp) and `remittanceReason` for read-only evidence.
 
 State changes follow `OPEN → IN_PROGRESS → SUBMITTED → REMITTED → RECONCILED → CLOSED`. Collection posting reuses `/payments` and GCash proof submission with a `batchAccountId`; the database permits only one pending or posted payment for a route account while retaining rejected and reversed attempts for audit history. Linked payments can be created, decided, or reversed only while the batch is `IN_PROGRESS`, and batch submission waits for those writes and rejects unresolved GCash proofs. Reconciliation and closure require `actorConfirmed: true` and the caller's exact `expectedDifferenceCentavos`, so a changed or nonzero difference cannot be silently treated as balanced.
 

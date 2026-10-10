@@ -22,6 +22,11 @@ function service() {
   return {
     list: vi.fn(async () => ({ items: [], page: 1, pageSize: 20, total: 0 })),
     get: vi.fn(async () => detail),
+    preview: vi.fn(async () => ({
+      accounts: [],
+      accountCount: 0,
+      expectedReceivableCentavos: 0,
+    })),
     create: vi.fn(async () => detail),
     start: vi.fn(async () => ({ ...detail, status: 'IN_PROGRESS' })),
     submit: vi.fn(async () => ({ ...detail, status: 'SUBMITTED' })),
@@ -36,6 +41,59 @@ afterEach(async () => {
 });
 
 describe('Task 6 collection API contract', () => {
+  it('authorizes and validates route preview without creating a batch', async () => {
+    const collections = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: auth,
+      collectionService: collections,
+    });
+    applications.push(app);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/collection-batches/preview',
+      headers: { authorization: 'Bearer token' },
+      payload: {
+        collectorId: '00000000-0000-4000-8000-000000000002',
+        collectionAreaId: '00000000-0000-4000-8000-000000000003',
+        batchDate: '2026-10-06',
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(auth.requirePermission).toHaveBeenCalledWith(
+      'token',
+      'collection.reconcile',
+    );
+    expect(collections.preview).toHaveBeenCalledOnce();
+    expect(collections.create).not.toHaveBeenCalled();
+  });
+
+  it('passes an explicit account selection to batch creation', async () => {
+    const collections = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: auth,
+      collectionService: collections,
+    });
+    applications.push(app);
+    const selectedServiceAccountIds = ['00000000-0000-4000-8000-000000000004'];
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/collection-batches',
+      headers: { authorization: 'Bearer token' },
+      payload: {
+        collectorId: '00000000-0000-4000-8000-000000000002',
+        collectionAreaId: '00000000-0000-4000-8000-000000000003',
+        batchDate: '2026-10-06',
+        selectedServiceAccountIds,
+      },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(collections.create).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedServiceAccountIds }),
+      user.id,
+    );
+  });
   it('requires collection.reconcile for generating a batch', async () => {
     const collections = service();
     const app = await createApp({

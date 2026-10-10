@@ -48,12 +48,17 @@ function setup(
   const close = vi.fn(async () => ({ ...batchDetail, status: 'CLOSED' }));
   window.bcis = {
     collections: {
-      list: vi.fn(async () => ({
-        items,
+      list: vi.fn(async (query: { status?: string }) => ({
+        items: query.status
+          ? items.filter(() => batchDetail.status === query.status)
+          : items,
         page: 1,
         pageSize: 20,
-        total: items.length,
+        total: query.status
+          ? items.filter(() => batchDetail.status === query.status).length
+          : items.length,
       })),
+      preview: vi.fn(),
       get,
       start: vi.fn(async () => ({ ...batchDetail, status: 'IN_PROGRESS' })),
       submit: vi.fn(async () => ({ ...batchDetail, status: 'SUBMITTED' })),
@@ -214,6 +219,10 @@ describe('CollectionsView', () => {
         ],
         currentDetail,
       );
+      if (status === 'CLOSED')
+        await user.click(
+          screen.getByRole('button', { name: /Search full register/i }),
+        );
       const openButton = await screen.findByRole('button', {
         name: /open batch.*2026-10-10/i,
       });
@@ -280,7 +289,9 @@ describe('CollectionsView', () => {
     await user.click(
       await screen.findByRole('button', { name: /open batch.*2026-10-10/i }),
     );
-    expect(screen.getByText(/pending verification/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/pending verification/i).length).toBeGreaterThan(
+      0,
+    );
     expect(
       screen.queryByRole('button', { name: 'Record' }),
     ).not.toBeInTheDocument();

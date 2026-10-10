@@ -9,6 +9,8 @@ import { useEffect, useRef, useState } from 'react';
 import { fileBase64 } from './payment-files';
 import { ActionDialog } from './ActionDialog';
 import { ModalDialog } from './ModalDialog';
+import { CollectionRouteWizard } from './CollectionRouteWizard';
+import './collection-journey.css';
 
 const PAGE_SIZE = 20;
 const lifecycle = [
@@ -37,12 +39,6 @@ function nextStep(status: CollectionBatchSummaryDto['status']) {
   }
 }
 
-function localDate() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
-}
-
 const money = (value: number) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(
     value / 100,
@@ -62,6 +58,13 @@ function centavos(value: string, allowZero = false) {
 
 export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
   const [rows, setRows] = useState<CollectionBatchSummaryDto[]>([]);
+  const [lanes, setLanes] = useState<
+    Record<string, { items: CollectionBatchSummaryDto[]; total: number }>
+  >({});
+  const [showWizard, setShowWizard] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [showAccountRegister, setShowAccountRegister] = useState(false);
+  const [remittanceAmount, setRemittanceAmount] = useState('');
   const [detail, setDetail] = useState<CollectionBatchDetailDto | null>(null);
   const [collectors, setCollectors] = useState<ReferenceItemDto[]>([]);
   const [areas, setAreas] = useState<ReferenceItemDto[]>([]);
@@ -86,18 +89,36 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
     setLoading(true);
     setError('');
     try {
-      const result = await window.bcis!.collections.list({
-        q: search,
-        page: targetPage,
-        pageSize: PAGE_SIZE,
-      });
+      const [result, ...laneResults] = await Promise.all([
+        window.bcis!.collections.list({
+          q: search,
+          page: targetPage,
+          pageSize: PAGE_SIZE,
+        }),
+        ...lifecycle.map((status) =>
+          window.bcis!.collections.list({
+            q: '',
+            page: 1,
+            pageSize: 8,
+            status,
+          }),
+        ),
+      ]);
       if (request !== listRequest.current) return;
       setRows(result.items);
+      setLanes(
+        Object.fromEntries(
+          lifecycle.flatMap((status, index) =>
+            laneResults[index] ? [[status, laneResults[index]]] : [],
+          ),
+        ),
+      );
       setPage(result.page);
       setTotal(result.total);
     } catch (caught) {
       if (request === listRequest.current) {
         setRows([]);
+        setLanes({});
         setTotal(0);
         setError(message(caught));
       }
@@ -127,27 +148,10 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
       setDetail(loaded);
       setSelectedAccount(null);
       setCollectionMethod('CASH');
+      setShowAccountRegister(false);
+      setRemittanceAmount((loaded.cashCollectedCentavos / 100).toFixed(2));
     } catch (caught) {
       if (request === detailRequest.current) setError(message(caught));
-    }
-  }
-
-  async function create(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    try {
-      const created = await window.bcis!.collections.create({
-        collectorId: String(form.get('collectorId')),
-        collectionAreaId: String(form.get('collectionAreaId')),
-        batchDate: String(form.get('batchDate')),
-      });
-      setDetail(created);
-      setNotice(
-        'Route sheet generated from the current assignments and balances.',
-      );
-      await load(1);
-    } catch (caught) {
-      setError(message(caught));
     }
   }
 
@@ -235,11 +239,14 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
     const amountCentavos = centavos(String(form.get('amount')), true);
     if (amountCentavos === null)
       return setError('Enter a valid remittance amount.');
+    const notes = String(form.get('notes')).trim();
+    if (amountCentavos !== detail.cashCollectedCentavos && !notes)
+      return setError('Explain the Cash remittance shortage or overage.');
     try {
       const updated = await window.bcis!.collections.remit(
         detail.id,
         amountCentavos,
-        String(form.get('notes')) || undefined,
+        notes || undefined,
       );
       setDetail(updated);
       setNotice(
@@ -263,165 +270,250 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
           {error}
         </div>
       ) : null}
-      {canReconcile ? (
-        <form
-          className="data-card form-grid collection-generator"
-          onSubmit={create}
-        >
-          <div className="card-heading">
-            <div>
-              <span>Route assignment</span>
-              <h2>Generate collection batch</h2>
-            </div>
-          </div>
-          <label>
-            Collector
-            <select name="collectorId" required>
-              <option value="">Select collector</option>
-              {collectors.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.code} — {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Collection area
-            <select name="collectionAreaId" required>
-              <option value="">Select area</option>
-              {areas.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.code} — {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Route date
-            <input
-              defaultValue={localDate()}
-              name="batchDate"
-              required
-              type="date"
-            />
-          </label>
-          <button className="primary-action" type="submit">
-            Generate route sheet
-          </button>
-        </form>
-      ) : null}
-      <section className="data-card table-card collection-list">
-        <div className="card-heading">
+      {canReconcile && !showWizard ? (
+        <section className="route-launch data-card">
           <div>
-            <span>Collector work</span>
-            <h2>Collection batches</h2>
+            <span className="eyebrow">Collection desk</span>
+            <h2>Prepare a collection route</h2>
+            <p>
+              Choose a collector and area, review accounts, then issue one clear
+              route sheet.
+            </p>
           </div>
-        </div>
-        <form
-          className="list-search"
-          onSubmit={(event) => {
-            event.preventDefault();
+          <button
+            className="primary-action"
+            onClick={() => setShowWizard(true)}
+            type="button"
+          >
+            Prepare route
+          </button>
+        </section>
+      ) : null}
+      {canReconcile && showWizard ? (
+        <CollectionRouteWizard
+          collectors={collectors}
+          areas={areas}
+          onCancel={() => setShowWizard(false)}
+          onCreated={(batch) => {
+            setShowWizard(false);
+            setDetail(batch);
+            setNotice('Collection route issued.');
             void load(1);
           }}
-        >
-          <label>
-            <span className="sr-only">Search collection batches</span>
-            <input
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Collector or collection area"
-              value={search}
-            />
-          </label>
-          <button type="submit">Search</button>
-        </form>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Collector / area</th>
-                <th>Expected</th>
-                <th>Status</th>
-                <th>Next step</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>
+        />
+      ) : null}
+      <section className="collection-desk" aria-label="Collection batch desk">
+        {[
+          { title: 'Prepare', statuses: ['OPEN'] },
+          { title: 'In field', statuses: ['IN_PROGRESS'] },
+          {
+            title: 'Reconcile',
+            statuses: ['SUBMITTED', 'REMITTED', 'RECONCILED'],
+          },
+        ].map((lane) => {
+          const count = lane.statuses.reduce(
+            (sum, status) => sum + (lanes[status]?.total ?? 0),
+            0,
+          );
+          const cards = lane.statuses
+            .flatMap((status) => lanes[status]?.items ?? [])
+            .slice(0, 8);
+          return (
+            <div className="collection-lane" key={lane.title}>
+              <div className="collection-lane-heading">
+                <h2>{lane.title}</h2>
+                <span>{count}</span>
+              </div>
+              {cards.length ? (
+                cards.map((batch) => (
+                  <article className="collection-batch-card" key={batch.id}>
+                    <div className="collection-batch-top">
+                      <strong>{batch.collectorName}</strong>
+                      <span className="record-status">
+                        {batch.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <p>
+                      {batch.collectionAreaName} · {batch.batchDate} ·{' '}
+                      {batch.accountCount} accounts
+                    </p>
+                    <dl>
+                      <div>
+                        <dt>Expected</dt>
+                        <dd>{money(batch.expectedReceivableCentavos)}</dd>
+                      </div>
+                      <div>
+                        <dt>Collected</dt>
+                        <dd>
+                          {money(
+                            batch.cashCollectedCentavos +
+                              batch.nonCashCollectedCentavos,
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Remitted</dt>
+                        <dd>{money(batch.remittedCashCentavos)}</dd>
+                      </div>
+                    </dl>
                     <button
-                      aria-label={`Open batch for ${row.collectorName}, ${row.collectionAreaName}, ${row.batchDate}`}
-                      className="record-link"
-                      onClick={() => void open(row.id)}
+                      className="collection-card-action"
+                      aria-label={`Open batch for ${batch.collectorName}, ${batch.collectionAreaName}, ${batch.batchDate}`}
+                      onClick={() => void open(batch.id)}
                       type="button"
                     >
-                      {row.batchDate}
+                      {nextStep(batch.status)} <span aria-hidden="true">→</span>
                     </button>
-                  </td>
-                  <td>
-                    {row.collectorName}
-                    <small>
-                      {row.collectionAreaName} · {row.accountCount} accounts
-                    </small>
-                  </td>
-                  <td>{money(row.expectedReceivableCentavos)}</td>
-                  <td>
-                    <span
-                      className={`record-status ${row.status === 'CLOSED' ? 'active' : ''}`}
-                    >
-                      {row.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td>
-                    <span className="collection-next-step">
-                      {nextStep(row.status)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </article>
+                ))
+              ) : (
+                <p className="collection-lane-empty">
+                  No batches here right now.
+                </p>
+              )}
+              {count > cards.length ? (
+                <button
+                  className="collection-lane-more"
+                  type="button"
+                  onClick={() => setShowRegister(true)}
+                >
+                  View all {count} batches
+                </button>
+              ) : null}
+            </div>
+          );
+        })}
+      </section>
+      {!loading && !error && !rows.length ? (
+        <div className="empty-state">
+          No collection batches match this view.
         </div>
-        {loading ? (
-          <div className="workspace-loading" role="status">
-            Loading collection batches…
+      ) : null}
+      <button
+        className="collection-register-toggle"
+        type="button"
+        aria-expanded={showRegister}
+        onClick={() => setShowRegister((current) => !current)}
+      >
+        {showRegister
+          ? 'Hide full register'
+          : `Search full register and closed batches${lanes.CLOSED?.total ? ` (${lanes.CLOSED.total} closed)` : ''}`}{' '}
+        <span aria-hidden="true">{showRegister ? '−' : '→'}</span>
+      </button>
+      {showRegister ? (
+        <section className="data-card table-card collection-list">
+          <div className="card-heading">
+            <div>
+              <span>Collector work</span>
+              <h2>Collection batches</h2>
+            </div>
           </div>
-        ) : null}
-        {error ? (
-          <div className="collection-load-error" role="alert">
-            <span>{error}</span>
-            <button onClick={() => void load(page)} type="button">
-              Retry
+          <form
+            className="list-search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void load(1);
+            }}
+          >
+            <label>
+              <span className="sr-only">Search collection batches</span>
+              <input
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Collector or collection area"
+                value={search}
+              />
+            </label>
+            <button type="submit">Search</button>
+          </form>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Collector / area</th>
+                  <th>Expected</th>
+                  <th>Status</th>
+                  <th>Next step</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <button
+                        aria-label={`Open batch for ${row.collectorName}, ${row.collectionAreaName}, ${row.batchDate}`}
+                        className="record-link"
+                        onClick={() => void open(row.id)}
+                        type="button"
+                      >
+                        {row.batchDate}
+                      </button>
+                    </td>
+                    <td>
+                      {row.collectorName}
+                      <small>
+                        {row.collectionAreaName} · {row.accountCount} accounts
+                      </small>
+                    </td>
+                    <td>{money(row.expectedReceivableCentavos)}</td>
+                    <td>
+                      <span
+                        className={`record-status ${row.status === 'CLOSED' ? 'active' : ''}`}
+                      >
+                        {row.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="collection-next-step">
+                        {nextStep(row.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {loading ? (
+            <div className="workspace-loading" role="status">
+              Loading collection batches…
+            </div>
+          ) : null}
+          {error ? (
+            <div className="collection-load-error" role="alert">
+              <span>{error}</span>
+              <button onClick={() => void load(page)} type="button">
+                Retry
+              </button>
+            </div>
+          ) : null}
+          {!loading && !error && !rows.length ? (
+            <div className="empty-state">
+              No collection batches match this view.
+            </div>
+          ) : null}
+          <div className="pagination">
+            <button
+              aria-label="Previous batches"
+              disabled={loading || page <= 1}
+              onClick={() => void load(page - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <span>
+              Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
+            <button
+              aria-label="Next batches"
+              disabled={loading || page * PAGE_SIZE >= total}
+              onClick={() => void load(page + 1)}
+              type="button"
+            >
+              Next
             </button>
           </div>
-        ) : null}
-        {!loading && !error && !rows.length ? (
-          <div className="empty-state">
-            No collection batches match this view.
-          </div>
-        ) : null}
-        <div className="pagination">
-          <button
-            aria-label="Previous batches"
-            disabled={loading || page <= 1}
-            onClick={() => void load(page - 1)}
-            type="button"
-          >
-            Previous
-          </button>
-          <span>
-            Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          </span>
-          <button
-            aria-label="Next batches"
-            disabled={loading || page * PAGE_SIZE >= total}
-            onClick={() => void load(page + 1)}
-            type="button"
-          >
-            Next
-          </button>
-        </div>
-      </section>
+        </section>
+      ) : null}
       {detail ? (
         <ModalDialog
           ariaLabel="Collection batch detail"
@@ -452,7 +544,13 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
                 >
                   Close
                 </button>
-                <button onClick={() => window.print()} type="button">
+                <button
+                  onClick={() => {
+                    setShowAccountRegister(true);
+                    window.setTimeout(() => window.print(), 80);
+                  }}
+                  type="button"
+                >
                   Print route sheet
                 </button>
                 {canReconcile && detail.status === 'OPEN' ? (
@@ -530,61 +628,137 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
                 </dd>
               </div>
             </dl>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Account</th>
-                    <th>Route address</th>
-                    <th>Current</th>
-                    <th>Arrears</th>
-                    <th>Total due</th>
-                    <th>Collection</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {detail.accounts.map((account) => (
-                    <tr key={account.id}>
-                      <td>
-                        {account.subscriberName}
-                        <small>
-                          {account.subscriberAccountNumber} ·{' '}
-                          {account.serviceAccountNumber}
-                        </small>
-                      </td>
-                      <td>{account.routeAddress}</td>
-                      <td>{money(account.currentBillCentavos)}</td>
-                      <td>{money(account.arrearsCentavos)}</td>
-                      <td>{money(account.totalDueCentavos)}</td>
-                      <td>
-                        {account.paymentId ? (
-                          <>
-                            {account.paymentAmountCentavos
-                              ? money(account.paymentAmountCentavos)
-                              : 'Pending'}
-                            <small>
-                              {account.paymentAmountCentavos
-                                ? account.paymentMethod?.replace('_', ' ')
-                                : `${account.paymentMethod?.replace('_', ' ') ?? 'Payment'} · pending verification`}
-                            </small>
-                          </>
-                        ) : detail.status === 'IN_PROGRESS' && canReconcile ? (
-                          <button
-                            className="table-action"
-                            onClick={() => setSelectedAccount(account)}
-                            type="button"
-                          >
-                            Record
-                          </button>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
+            {detail.status === 'CLOSED' ? (
+              <p className="route-closed-note">
+                Closed batch · read-only evidence. The recorded difference and
+                remittance reason remain available below.
+              </p>
+            ) : null}
+            {detail.remittanceReason ? (
+              <p className="route-remittance-reason">
+                <strong>Remittance reason:</strong> {detail.remittanceReason}
+              </p>
+            ) : null}
+            {detail.history?.length ? (
+              <details className="route-register-detail">
+                <summary>View batch history</summary>
+                <ol className="route-history">
+                  {detail.history.map((event, index) => (
+                    <li key={`${event.action}-${index}`}>
+                      <strong>
+                        {event.action
+                          .replace('COLLECTION_BATCH_', '')
+                          .replace('_', ' ')}
+                      </strong>
+                      <span>
+                        {event.actorName ?? 'System'} ·{' '}
+                        {new Date(event.occurredAt).toLocaleString()}
+                      </span>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ol>
+              </details>
+            ) : null}
+            <div className="route-account-grid">
+              {detail.accounts.map((account) => (
+                <article className="route-account-card" key={account.id}>
+                  <div>
+                    <strong>{account.subscriberName}</strong>
+                    <small>
+                      {account.subscriberAccountNumber} ·{' '}
+                      {account.serviceAccountNumber}
+                    </small>
+                    <small>{account.routeAddress}</small>
+                  </div>
+                  <div>
+                    <span>Total due</span>
+                    <b>{money(account.totalDueCentavos)}</b>
+                  </div>
+                  {account.paymentId ? (
+                    <span className="record-status active">
+                      {account.paymentAmountCentavos
+                        ? `${money(account.paymentAmountCentavos)} collected`
+                        : 'Pending verification'}
+                    </span>
+                  ) : detail.status === 'IN_PROGRESS' && canReconcile ? (
+                    <button
+                      className="primary-action"
+                      onClick={() => setSelectedAccount(account)}
+                      type="button"
+                    >
+                      Record collection
+                    </button>
+                  ) : (
+                    <span className="record-status">Not collected</span>
+                  )}
+                </article>
+              ))}
             </div>
+            <details
+              className="route-register-detail"
+              open={showAccountRegister}
+              onToggle={(event) =>
+                setShowAccountRegister(event.currentTarget.open)
+              }
+            >
+              <summary>View full account register</summary>
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Route address</th>
+                      <th>Current</th>
+                      <th>Arrears</th>
+                      <th>Total due</th>
+                      <th>Collection</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.accounts.map((account) => (
+                      <tr key={account.id}>
+                        <td>
+                          {account.subscriberName}
+                          <small>
+                            {account.subscriberAccountNumber} ·{' '}
+                            {account.serviceAccountNumber}
+                          </small>
+                        </td>
+                        <td>{account.routeAddress}</td>
+                        <td>{money(account.currentBillCentavos)}</td>
+                        <td>{money(account.arrearsCentavos)}</td>
+                        <td>{money(account.totalDueCentavos)}</td>
+                        <td>
+                          {account.paymentId ? (
+                            <>
+                              {account.paymentAmountCentavos
+                                ? money(account.paymentAmountCentavos)
+                                : 'Pending'}
+                              <small>
+                                {account.paymentAmountCentavos
+                                  ? account.paymentMethod?.replace('_', ' ')
+                                  : `${account.paymentMethod?.replace('_', ' ') ?? 'Payment'} · pending verification`}
+                              </small>
+                            </>
+                          ) : detail.status === 'IN_PROGRESS' &&
+                            canReconcile ? (
+                            <button
+                              className="table-action"
+                              onClick={() => setSelectedAccount(account)}
+                              type="button"
+                            >
+                              Record
+                            </button>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
             {!detail.accounts.length ? (
               <div className="empty-state">
                 No assigned active service accounts were found for this route.
@@ -675,9 +849,10 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
                 <label>
                   Amount (PHP)
                   <input
-                    defaultValue={(detail.cashCollectedCentavos / 100).toFixed(
-                      2,
-                    )}
+                    value={remittanceAmount}
+                    onChange={(event) =>
+                      setRemittanceAmount(event.target.value)
+                    }
                     min="0"
                     name="amount"
                     required
@@ -686,9 +861,32 @@ export function CollectionsView({ canReconcile }: { canReconcile: boolean }) {
                   />
                 </label>
                 <label>
-                  Notes
-                  <input name="notes" />
+                  Reason{' '}
+                  {centavos(remittanceAmount, true) !==
+                  detail.cashCollectedCentavos
+                    ? '(required for difference)'
+                    : '(optional)'}
+                  <input
+                    name="notes"
+                    required={
+                      centavos(remittanceAmount, true) !==
+                      detail.cashCollectedCentavos
+                    }
+                  />
                 </label>
+                <p className="span-two remittance-preview">
+                  {(() => {
+                    const amount = centavos(remittanceAmount, true);
+                    if (amount === null)
+                      return 'Enter a valid amount to review the difference.';
+                    const difference = amount - detail.cashCollectedCentavos;
+                    return difference === 0
+                      ? 'Cash balances with the recorded collection.'
+                      : difference < 0
+                        ? `${money(-difference)} shortage requires a reason.`
+                        : `${money(difference)} overage requires a reason.`;
+                  })()}
+                </p>
                 <button className="primary-action span-two" type="submit">
                   Record remittance
                 </button>

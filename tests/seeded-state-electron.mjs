@@ -367,6 +367,57 @@ try {
   }
 
   await page.getByRole('button', { name: 'Collections' }).click();
+  await page.getByRole('region', { name: 'Collection batch desk' }).waitFor();
+  await page.locator('.collection-batch-card').first().waitFor();
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-collection-desk.png',
+  });
+  await page.getByRole('button', { name: 'Prepare route' }).click();
+  await page
+    .getByRole('region', { name: 'Prepare collection route' })
+    .waitFor();
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-collection-wizard.png',
+  });
+  const routeWizard = page.getByRole('region', {
+    name: 'Prepare collection route',
+  });
+  const collectorOption = routeWizard
+    .getByLabel('Collector')
+    .locator('option')
+    .filter({ hasText: 'Alexander Rivera' })
+    .first();
+  const areaOption = routeWizard
+    .getByLabel('Collection area')
+    .locator('option')
+    .filter({ hasText: 'North District' })
+    .first();
+  await routeWizard
+    .getByLabel('Collector')
+    .selectOption((await collectorOption.getAttribute('value')) ?? '');
+  await routeWizard
+    .getByLabel('Collection area')
+    .selectOption((await areaOption.getAttribute('value')) ?? '');
+  await routeWizard.getByRole('button', { name: 'Review accounts' }).click();
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-collection-preview-response.png',
+  });
+  await routeWizard.getByText('Selected for this route').waitFor();
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-collection-account-review.png',
+  });
+  await page.setViewportSize({ width: 1000, height: 700 });
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-collection-account-review-compact.png',
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page
+    .getByRole('region', { name: 'Prepare collection route' })
+    .getByRole('button', { name: 'Cancel' })
+    .click();
+  await page
+    .getByRole('button', { name: /Search full register and closed batches/ })
+    .click();
   await page.getByRole('heading', { name: 'Collection batches' }).waitFor();
   await page.locator('tbody .record-link').first().click();
   const collectionDialog = page.getByLabel('Collection batch detail');

@@ -77,6 +77,11 @@ const desktopApi: DesktopApi = Object.freeze({
     list: (query: Record<string, unknown>) =>
       ipcRenderer.invoke('collections:list', query),
     get: (id: string) => ipcRenderer.invoke('collections:get', id),
+    preview: (input: {
+      collectorId: string;
+      collectionAreaId: string;
+      batchDate: string;
+    }) => ipcRenderer.invoke('collections:preview', input),
     create: (input: Record<string, unknown>) =>
       ipcRenderer.invoke('collections:create', input),
     start: (id: string) => ipcRenderer.invoke('collections:start', id),

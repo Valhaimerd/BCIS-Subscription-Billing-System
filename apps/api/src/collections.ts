@@ -1,6 +1,7 @@
 import type {
   CollectionBatchDetailDto,
   CollectionBatchSummaryDto,
+  CollectionRoutePreviewDto,
   Paginated,
 } from '@bcis/contracts';
 import {
@@ -15,6 +16,7 @@ import {
   serviceAccounts,
   subscriberAddresses,
   subscribers,
+  users,
   type DatabaseConnection,
 } from '@bcis/database';
 import {
@@ -58,70 +60,74 @@ function isUniqueViolation(error: unknown) {
 export class CollectionService {
   constructor(private readonly db: Database) {}
 
+  async preview(input: {
+    collectorId: string;
+    collectionAreaId: string;
+    batchDate: string;
+  }): Promise<CollectionRoutePreviewDto> {
+    await this.requireAssignment(input, this.db);
+    const rows = await this.routeCandidates(input, this.db);
+    const accounts = rows.map((row) => ({
+      serviceAccountId: row.serviceAccountId,
+      subscriberName: row.subscriberName,
+      subscriberAccountNumber: row.subscriberAccountNumber,
+      serviceAccountNumber: row.serviceAccountNumber,
+      routeAddress: row.routeAddress,
+      currentBillCentavos: Number(row.currentBillCentavos),
+      arrearsCentavos: Number(row.arrearsCentavos),
+      totalDueCentavos:
+        Number(row.currentBillCentavos) + Number(row.arrearsCentavos),
+    }));
+    return {
+      accounts,
+      accountCount: accounts.length,
+      expectedReceivableCentavos: accounts.reduce(
+        (total, account) => total + account.totalDueCentavos,
+        0,
+      ),
+    };
+  }
+
   async create(
-    input: { collectorId: string; collectionAreaId: string; batchDate: string },
+    input: {
+      collectorId: string;
+      collectionAreaId: string;
+      batchDate: string;
+      selectedServiceAccountIds?: string[] | undefined;
+    },
     actorUserId: string,
   ) {
     try {
       return await this.db.transaction(async (transaction) => {
-        const [assignment] = await transaction
-          .select()
-          .from(collectorAreaAssignments)
-          .where(
-            and(
-              eq(collectorAreaAssignments.collectorId, input.collectorId),
-              eq(
-                collectorAreaAssignments.collectionAreaId,
-                input.collectionAreaId,
-              ),
-            ),
-          );
-        if (!assignment)
-          throw new CollectionError(
-            409,
-            'The collector is not assigned to this collection area.',
-          );
+        await this.requireAssignment(input, transaction);
 
         const [batch] = await transaction
           .insert(collectionBatches)
-          .values({ ...input, createdByUserId: actorUserId })
+          .values({
+            collectorId: input.collectorId,
+            collectionAreaId: input.collectionAreaId,
+            batchDate: input.batchDate,
+            createdByUserId: actorUserId,
+          })
           .returning();
         if (!batch) throw new Error('Collection batch insert failed.');
 
-        const firstOfMonth = `${input.batchDate.slice(0, 7)}-01`;
-        const routeRows = await transaction
-          .select({
-            subscriberId: subscribers.id,
-            subscriberAccountNumber: subscribers.accountNumber,
-            subscriberName: subscribers.fullName,
-            serviceAccountId: serviceAccounts.id,
-            serviceAccountNumber: serviceAccounts.accountNumber,
-            routeAddress: sql<string>`coalesce(${subscriberAddresses.addressLine}, (select sa.address_line from subscriber_addresses sa where sa.subscriber_id = ${subscribers.id} order by sa.is_primary desc, sa.created_at asc limit 1), 'Address not recorded')`,
-            currentBillCentavos: sql<number>`coalesce((select sum(greatest(i.total_centavos + coalesce((select sum(a.amount_centavos) from adjustments a where a.invoice_id = i.id), 0) - coalesce((select sum(pa.amount_centavos) from payment_allocations pa join payments p on p.id = pa.payment_id where pa.invoice_id = i.id and p.status = 'POSTED'), 0), 0)) from invoices i where i.service_account_id = ${serviceAccounts.id} and i.status not in ('DRAFT', 'VOID', 'CREDITED', 'PAID') and i.invoice_date >= ${firstOfMonth} and i.invoice_date <= ${input.batchDate}), 0)`,
-            arrearsCentavos: sql<number>`coalesce((select sum(greatest(i.total_centavos + coalesce((select sum(a.amount_centavos) from adjustments a where a.invoice_id = i.id), 0) - coalesce((select sum(pa.amount_centavos) from payment_allocations pa join payments p on p.id = pa.payment_id where pa.invoice_id = i.id and p.status = 'POSTED'), 0), 0)) from invoices i where i.service_account_id = ${serviceAccounts.id} and i.status not in ('DRAFT', 'VOID', 'CREDITED', 'PAID') and i.invoice_date < ${firstOfMonth}), 0)`,
-          })
-          .from(serviceAccounts)
-          .innerJoin(
-            subscribers,
-            eq(subscribers.id, serviceAccounts.subscriberId),
-          )
-          .leftJoin(
-            subscriberAddresses,
-            eq(subscriberAddresses.id, serviceAccounts.installationAddressId),
-          )
-          .where(
-            and(
-              eq(serviceAccounts.status, 'ACTIVE'),
-              eq(subscribers.status, 'ACTIVE'),
-              eq(subscribers.collectionAreaId, input.collectionAreaId),
-              sql`coalesce(${serviceAccounts.assignedCollectorId}, ${subscribers.assignedCollectorId}) = ${input.collectorId}`,
-            ),
-          )
-          .orderBy(
-            asc(subscribers.accountNumber),
-            asc(serviceAccounts.accountNumber),
+        const selected = input.selectedServiceAccountIds
+          ? new Set(input.selectedServiceAccountIds)
+          : null;
+        const routeRows = (
+          await this.routeCandidates(input, transaction)
+        ).filter((row) => !selected || selected.has(row.serviceAccountId));
+        if (selected && routeRows.length !== selected.size)
+          throw new CollectionError(
+            409,
+            'Route accounts changed. Review the route again.',
           );
-
+        if (!routeRows.length && selected)
+          throw new CollectionError(
+            409,
+            'Select at least one account for this route.',
+          );
         if (routeRows.length)
           await transaction.insert(batchAccounts).values(
             routeRows.map((row) => ({
@@ -150,6 +156,62 @@ export class CollectionService {
         );
       throw error;
     }
+  }
+
+  private async requireAssignment(
+    input: { collectorId: string; collectionAreaId: string },
+    database: Pick<Database, 'select'>,
+  ) {
+    const [assignment] = await database
+      .select()
+      .from(collectorAreaAssignments)
+      .where(
+        and(
+          eq(collectorAreaAssignments.collectorId, input.collectorId),
+          eq(collectorAreaAssignments.collectionAreaId, input.collectionAreaId),
+        ),
+      );
+    if (!assignment)
+      throw new CollectionError(
+        409,
+        'The collector is not assigned to this collection area.',
+      );
+  }
+
+  private async routeCandidates(
+    input: { collectorId: string; collectionAreaId: string; batchDate: string },
+    database: Pick<Database, 'select'>,
+  ) {
+    const firstOfMonth = `${input.batchDate.slice(0, 7)}-01`;
+    return database
+      .select({
+        subscriberId: subscribers.id,
+        subscriberAccountNumber: subscribers.accountNumber,
+        subscriberName: subscribers.fullName,
+        serviceAccountId: serviceAccounts.id,
+        serviceAccountNumber: serviceAccounts.accountNumber,
+        routeAddress: sql<string>`coalesce(${subscriberAddresses.addressLine}, (select sa.address_line from subscriber_addresses sa where sa.subscriber_id = ${subscribers.id} order by sa.is_primary desc, sa.created_at asc limit 1), 'Address not recorded')`,
+        currentBillCentavos: sql<number>`coalesce((select sum(greatest(i.total_centavos + coalesce((select sum(a.amount_centavos) from adjustments a where a.invoice_id = i.id), 0) - coalesce((select sum(pa.amount_centavos) from payment_allocations pa join payments p on p.id = pa.payment_id where pa.invoice_id = i.id and p.status = 'POSTED'), 0), 0)) from invoices i where i.service_account_id = ${serviceAccounts.id} and i.status not in ('DRAFT', 'VOID', 'CREDITED', 'PAID') and i.invoice_date >= ${firstOfMonth} and i.invoice_date <= ${input.batchDate}), 0)`,
+        arrearsCentavos: sql<number>`coalesce((select sum(greatest(i.total_centavos + coalesce((select sum(a.amount_centavos) from adjustments a where a.invoice_id = i.id), 0) - coalesce((select sum(pa.amount_centavos) from payment_allocations pa join payments p on p.id = pa.payment_id where pa.invoice_id = i.id and p.status = 'POSTED'), 0), 0)) from invoices i where i.service_account_id = ${serviceAccounts.id} and i.status not in ('DRAFT', 'VOID', 'CREDITED', 'PAID') and i.invoice_date < ${firstOfMonth}), 0)`,
+      })
+      .from(serviceAccounts)
+      .innerJoin(subscribers, eq(subscribers.id, serviceAccounts.subscriberId))
+      .leftJoin(
+        subscriberAddresses,
+        eq(subscriberAddresses.id, serviceAccounts.installationAddressId),
+      )
+      .where(
+        and(
+          eq(serviceAccounts.status, 'ACTIVE'),
+          eq(subscribers.status, 'ACTIVE'),
+          eq(subscribers.collectionAreaId, input.collectionAreaId),
+          sql`coalesce(${serviceAccounts.assignedCollectorId}, ${subscribers.assignedCollectorId}) = ${input.collectorId}`,
+        ),
+      )
+      .orderBy(
+        asc(subscribers.accountNumber),
+        asc(serviceAccounts.accountNumber),
+      );
   }
 
   async list(query: {
@@ -241,6 +303,15 @@ export class CollectionService {
     try {
       return await this.db.transaction(async (transaction) => {
         await this.lockAndRequire(id, 'SUBMITTED', transaction);
+        const before = await this.summary(id, transaction);
+        if (
+          input.amountCentavos !== before.cashCollectedCentavos &&
+          !input.notes?.trim()
+        )
+          throw new CollectionError(
+            409,
+            'Enter a reason for a Cash remittance shortage or overage.',
+          );
         await transaction.insert(collectorRemittances).values({
           batchId: id,
           ...input,
@@ -397,8 +468,36 @@ export class CollectionService {
         asc(batchAccounts.subscriberAccountNumber),
         asc(batchAccounts.serviceAccountNumber),
       );
+    const [historyRows, remittanceRows] = await Promise.all([
+      database
+        .select({
+          action: auditLogs.action,
+          actorName: users.fullName,
+          occurredAt: auditLogs.createdAt,
+        })
+        .from(auditLogs)
+        .leftJoin(users, eq(users.id, auditLogs.actorUserId))
+        .where(
+          and(
+            eq(auditLogs.entityType, 'collection_batch'),
+            eq(auditLogs.entityId, id),
+          ),
+        )
+        .orderBy(asc(auditLogs.createdAt)),
+      database
+        .select({ notes: collectorRemittances.notes })
+        .from(collectorRemittances)
+        .where(eq(collectorRemittances.batchId, id))
+        .limit(1),
+    ]);
     return {
       ...summary,
+      history: historyRows.map((event) => ({
+        action: event.action,
+        actorName: event.actorName,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
+      remittanceReason: remittanceRows[0]?.notes ?? null,
       accounts: rows.map(({ account, payment }) => ({
         id: account.id,
         subscriberId: account.subscriberId,
