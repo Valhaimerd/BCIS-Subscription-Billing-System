@@ -1,0 +1,2 @@
+DROP INDEX "payments_batch_account_unique";--> statement-breakpoint
+CREATE UNIQUE INDEX "payments_batch_account_unique" ON "payments" USING btree ("batch_account_id") WHERE "payments"."batch_account_id" is not null and "payments"."status" in ('PENDING_VERIFICATION', 'POSTED');

@@ -1,0 +1,41 @@
+{
+  "name": "@bcis/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/server.js --packages=external --sourcemap",
+    "db:seed": "tsx src/seed.ts",
+    "verify:task3": "tsx src/task3-check.ts",
+    "verify:task4": "tsx src/task4-check.ts",
+    "verify:task5": "tsx src/task5-check.ts",
+    "verify:task6": "tsx src/task6-check.ts",
+    "verify:task7": "tsx src/task7-check.ts",
+    "verify:task8": "tsx src/task8-check.ts",
+    "verify:task9": "tsx src/task9-check.ts",
+    "verify:task10": "tsx src/task10-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@bcis/contracts": "0.1.0",
+    "@bcis/database": "0.1.0",
+    "@fastify/swagger": "9.9.1",
+    "@fastify/swagger-ui": "6.1.1",
+    "argon2": "^0.44.0",
+    "dotenv": "18.0.5",
+    "exceljs": "^4.4.0",
+    "fastify": "5.12.5",
+    "pdfmake": "^0.3.11",
+    "pino": "10.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pdfmake": "^0.3.3",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15"
+  }
+}

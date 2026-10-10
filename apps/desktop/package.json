@@ -1,0 +1,61 @@
+{
+  "name": "@bcis/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BCIS Windows billing and collection desktop client",
+  "author": "BCIS Laboratory Team",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "preview:renderer": "vite preview --host 127.0.0.1 --outDir out/renderer",
+    "dist": "npm run build && electron-builder --win nsis",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run src"
+  },
+  "dependencies": {
+    "@bcis/contracts": "0.1.0",
+    "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-table": "9.2.4",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "dotenv": "^18.0.5",
+    "lucide-react": "1.49.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.89.0",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/vite": "4.3.3",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3",
+    "electron-vite": "5.0.0",
+    "jsdom": "30.1.1",
+    "tailwindcss": "4.3.3",
+    "vite": "7.3.6"
+  },
+  "build": {
+    "appId": "ph.bcis.billing",
+    "productName": "BCIS Billing and Collection",
+    "directories": {
+      "output": "../../release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

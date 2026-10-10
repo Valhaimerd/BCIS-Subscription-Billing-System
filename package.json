@@ -1,0 +1,59 @@
+{
+  "name": "bcis-subscription-billing-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BCIS subscription billing, collection, and subscriber ledger system",
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "workspaces": [
+    "packages/contracts",
+    "packages/database",
+    "apps/api",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace @bcis/api",
+    "dev:desktop": "npm run dev --workspace @bcis/desktop",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace @bcis/database",
+    "db:migrate": "npm run db:migrate --workspace @bcis/database",
+    "db:seed": "npm run db:seed --workspace @bcis/api",
+    "db:reset:lab": "node scripts/reset-lab-database.mjs",
+    "verify:task4": "npm run verify:task4 --workspace @bcis/api",
+    "verify:task5": "npm run verify:task5 --workspace @bcis/api",
+    "verify:task6": "npm run verify:task6 --workspace @bcis/api",
+    "verify:task7": "npm run verify:task7 --workspace @bcis/api",
+    "verify:task8": "npm run verify:task8 --workspace @bcis/api",
+    "verify:task9": "npm run verify:task9 --workspace @bcis/api",
+    "verify:task10": "npm run verify:task10 --workspace @bcis/api",
+    "verify:task10:clean": "node scripts/task10-clean-acceptance.mjs",
+    "verify:seeded-ui": "node tests/seeded-state-electron.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.11.0",
+    "esbuild": "0.28.2",
+    "globals": "17.12.0",
+    "prettier": "3.9.0",
+    "typescript": "6.0.2",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.3"
+  },
+  "allowScripts": {
+    "electron@44.5.1": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.18.20": true,
+    "argon2@0.44.0": true
+  }
+}
