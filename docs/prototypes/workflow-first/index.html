@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#102846" />
+    <title>BCIS · Workflow prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./prototype.js" defer></script>
+  </head>
+  <body data-concept="workbench">
+    <div class="prototype-banner">
+      <span class="prototype-pill">Interactive concept</span>
+      <span>Sample records only · No payment or account data is sent</span>
+      <div class="concept-switch" role="group" aria-label="Design concept">
+        <button
+          class="concept-option is-selected"
+          data-concept-choice="workbench"
+          type="button"
+        >
+          A · Workbench
+        </button>
+        <button
+          class="concept-option"
+          data-concept-choice="focus"
+          type="button"
+        >
+          B · Focus
+        </button>
+        <button class="concept-option" data-concept-choice="rail" type="button">
+          C · Rail
+        </button>
+      </div>
+    </div>
+
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+        <div class="sidebar-head">
+          <div class="brand-mark" aria-hidden="true"><span>BC</span></div>
+          <div class="brand-name">
+            <strong>BCIS</strong><small>Billing & Collection</small>
+          </div>
+          <button
+            class="icon-button sidebar-toggle"
+            id="sidebarToggle"
+            type="button"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m14 6-6 6 6 6" />
+            </svg>
+          </button>
+        </div>
+        <div class="sidebar-label">Workspace</div>
+        <nav class="nav-list" aria-label="Work areas">
+          <button class="nav-item is-active" data-view="today" type="button">
+            <span class="nav-icon">⌂</span><span class="nav-text">Today</span>
+          </button>
+          <button class="nav-item" data-view="customers" type="button">
+            <span class="nav-icon">◫</span
+            ><span class="nav-text">Customers</span>
+          </button>
+          <button class="nav-item" data-view="money" type="button">
+            <span class="nav-icon">▣</span><span class="nav-text">Money</span>
+          </button>
+          <button class="nav-item" data-view="field" type="button">
+            <span class="nav-icon">♧</span
+            ><span class="nav-text">Field work</span>
+          </button>
+          <button class="nav-item" data-view="insights" type="button">
+            <span class="nav-icon">▥</span
+            ><span class="nav-text">Insights</span>
+          </button>
+          <button class="nav-item" data-view="system" type="button">
+            <span class="nav-icon">⚙</span><span class="nav-text">System</span>
+          </button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="session-dot" aria-hidden="true"></div>
+          <div class="sidebar-bottom-copy">
+            <strong>Protected session</strong><small>Local prototype</small>
+          </div>
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <header class="topbar">
+          <button
+            class="icon-button mobile-menu"
+            id="mobileMenu"
+            type="button"
+            aria-label="Open navigation"
+          >
+            ☰
+          </button>
+          <div class="topbar-crumb">
+            <span>Workspace</span><span class="crumb-divider">/</span
+            ><strong id="crumbName">Today</strong>
+          </div>
+          <div class="topbar-actions">
+            <button
+              class="global-search"
+              id="globalSearch"
+              type="button"
+              aria-label="Search accounts and records"
+            >
+              <span aria-hidden="true">⌕</span> Search records
+              <kbd>Ctrl K</kbd>
+            </button>
+            <div class="role-picker">
+              <label for="roleSelect">View as</label
+              ><select id="roleSelect">
+                <option value="cashier">Cashier</option>
+                <option value="owner">Owner</option>
+                <option value="supervisor">Collection supervisor</option>
+                <option value="auditor">Auditor</option>
+                <option value="technician">Technician</option>
+              </select>
+            </div>
+            <div class="avatar" aria-hidden="true">BC</div>
+          </div>
+        </header>
+
+        <main class="workspace" id="workspace">
+          <section
+            class="view-panel"
+            id="view-today"
+            aria-labelledby="pageTitle"
+          >
+            <div class="page-heading">
+              <div>
+                <p class="context-label" id="todayContext">Cashier workspace</p>
+                <h1 id="pageTitle">Good morning, Alex.</h1>
+                <p class="page-description" id="todayDescription">
+                  Start with the customer, then finish the payment with
+                  confidence.
+                </p>
+              </div>
+              <div class="date-capsule">
+                <span class="date-icon">◷</span
+                ><span>Saturday, 10 October 2026</span>
+              </div>
+            </div>
+            <div class="hero-card" id="heroCard">
+              <div class="hero-copy">
+                <div class="hero-symbol">✦</div>
+                <p class="hero-kicker" id="heroKicker">Your next step</p>
+                <h2 id="heroTitle">Receive a payment</h2>
+                <p id="heroDescription">
+                  Find an account, check what is due, and review the allocation
+                  before posting.
+                </p>
+                <button
+                  class="button button-light"
+                  id="heroAction"
+                  type="button"
+                >
+                  Find a subscriber <span aria-hidden="true">↗</span>
+                </button>
+              </div>
+              <div class="hero-art" aria-hidden="true">
+                <div class="orb orb-one"></div>
+                <div class="orb orb-two"></div>
+                <div class="hero-mini-card">
+                  <span>Payment flow</span><strong>Find → Review → Post</strong>
+                  <div class="mini-progress"><i></i><i></i><i></i></div>
+                </div>
+              </div>
+            </div>
+            <div class="section-heading">
+              <div>
+                <h2>Needs your attention</h2>
+                <p>Only work you can act on appears here.</p>
+              </div>
+              <span class="section-count">3 priorities</span>
+            </div>
+            <div class="priority-grid" id="priorityGrid"></div>
+            <div class="lower-grid">
+              <section class="surface-card recent-card">
+                <div class="card-heading">
+                  <div>
+                    <h2>Recent work</h2>
+                    <p>Clear next steps, not a full register.</p>
+                  </div>
+                  <button class="text-button" id="recentAll" type="button">
+                    Open workspace <span aria-hidden="true">↗</span>
+                  </button>
+                </div>
+                <div id="recentWork"></div>
+              </section>
+              <section class="surface-card pulse-card">
+                <div class="card-heading">
+                  <div>
+                    <h2>At a glance</h2>
+                    <p>Sample data for visual review</p>
+                  </div>
+                  <span class="small-mark">October</span>
+                </div>
+                <div class="pulse-stat">
+                  <strong id="pulseValue">₱136,025</strong
+                  ><span id="pulseLabel">collected this month</span>
+                </div>
+                <div class="bar-chart" aria-label="Example collection activity">
+                  <span style="height: 44%"></span
+                  ><span style="height: 58%"></span
+                  ><span style="height: 39%"></span
+                  ><span style="height: 70%"></span
+                  ><span style="height: 53%"></span
+                  ><span style="height: 76%"></span
+                  ><span style="height: 64%"></span
+                  ><span style="height: 88%"></span
+                  ><span style="height: 70%"></span
+                  ><span style="height: 100%"></span>
+                </div>
+                <div class="chart-footer">
+                  <span>1 Oct</span><span>10 Oct</span>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <section class="view-panel" id="view-customers" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="context-label">Customers</p>
+                <h1>Find an account</h1>
+                <p class="page-description">
+                  Search first. Open the full story only when you need it.
+                </p>
+              </div>
+              <button
+                class="button button-primary"
+                id="newSubscriber"
+                type="button"
+              >
+                Register subscriber
+              </button>
+            </div>
+            <div class="search-panel">
+              <label for="accountSearch"
+                >Subscriber name or account number</label
+              >
+              <div class="search-row">
+                <input
+                  id="accountSearch"
+                  type="search"
+                  placeholder="Try Maria Santos or SUB-00001"
+                  autocomplete="off"
+                /><button
+                  class="button button-primary"
+                  id="searchAccount"
+                  type="button"
+                >
+                  Search accounts
+                </button>
+              </div>
+              <div class="filter-row">
+                <button
+                  class="filter-chip is-selected"
+                  data-filter="all"
+                  type="button"
+                >
+                  All accounts</button
+                ><button class="filter-chip" data-filter="active" type="button">
+                  Active</button
+                ><button
+                  class="filter-chip"
+                  data-filter="overdue"
+                  type="button"
+                >
+                  Needs follow-up
+                </button>
+              </div>
+            </div>
+            <div class="section-heading">
+              <div>
+                <h2>Accounts</h2>
+                <p>Choose a customer to see the right next action.</p>
+              </div>
+              <span class="section-count" id="accountCount">3 accounts</span>
+            </div>
+            <div class="account-grid" id="accountGrid"></div>
+          </section>
+
+          <section class="view-panel" id="view-money" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="context-label">Money</p>
+                <h1>Move money with clarity</h1>
+                <p class="page-description">
+                  Each step makes its effect visible before anything is posted.
+                </p>
+              </div>
+              <button
+                class="button button-primary"
+                id="moneyPayment"
+                type="button"
+              >
+                Receive payment
+              </button>
+            </div>
+            <div class="task-grid">
+              <button
+                class="task-card is-featured"
+                id="moneyReceive"
+                type="button"
+              >
+                <span class="task-icon">₱</span
+                ><span
+                  ><strong>Receive payment</strong
+                  ><small
+                    >Find customer, review allocation, issue receipt</small
+                  ></span
+                ><span class="task-arrow">↗</span></button
+              ><button class="task-card" id="moneyVerify" type="button">
+                <span class="task-icon teal">✓</span
+                ><span
+                  ><strong>Verify GCash</strong
+                  ><small>Review proof and confirm the match</small></span
+                ><span class="task-arrow">↗</span></button
+              ><button class="task-card" id="moneyBilling" type="button">
+                <span class="task-icon gold">▤</span
+                ><span
+                  ><strong>Billing runs</strong
+                  ><small>Review drafts and month-end posting</small></span
+                ><span class="task-arrow">↗</span>
+              </button>
+            </div>
+            <div class="section-heading">
+              <div>
+                <h2>Recently handled</h2>
+                <p>Open an item for context and history.</p>
+              </div>
+            </div>
+            <div class="money-feed">
+              <button class="feed-row" data-record="RCPT-005040" type="button">
+                <span class="feed-initial">MS</span
+                ><span
+                  ><strong>Maria Santos</strong
+                  ><small>RCPT-005040 · GCash · Posted</small></span
+                ><b>₱100</b><span>↗</span></button
+              ><button class="feed-row" data-record="RCPT-005039" type="button">
+                <span class="feed-initial">MS</span
+                ><span
+                  ><strong>Maria Santos</strong
+                  ><small>RCPT-005039 · Cash · Posted</small></span
+                ><b>₱20,000</b><span>↗</span></button
+              ><button class="feed-row" data-record="RCPT-005025" type="button">
+                <span class="feed-initial">LM</span
+                ><span
+                  ><strong>Leandro Mendoza</strong
+                  ><small>RCPT-005025 · Cash · Posted</small></span
+                ><b>₱100</b><span>↗</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="view-panel" id="view-field" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="context-label">Field work</p>
+                <h1>Cases worth a closer look</h1>
+                <p class="page-description">
+                  Priority and context first. Full registers stay one level
+                  deeper.
+                </p>
+              </div>
+            </div>
+            <div class="summary-strip">
+              <div><small>Follow-up accounts</small><strong>51</strong></div>
+              <div><small>Suspension candidates</small><strong>3</strong></div>
+              <div><small>Overdue balance</small><strong>₱87,931</strong></div>
+            </div>
+            <div class="section-heading">
+              <div>
+                <h2>Act today</h2>
+                <p>Ordered by consequence and age.</p>
+              </div>
+              <button class="text-button" id="fieldAll" type="button">
+                View all cases ↗
+              </button>
+            </div>
+            <div class="case-grid" id="caseGrid"></div>
+          </section>
+
+          <section class="view-panel" id="view-insights" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="context-label">Insights</p>
+                <h1>Start with a question</h1>
+                <p class="page-description">
+                  A report should answer something, then let you trace the
+                  source.
+                </p>
+              </div>
+            </div>
+            <div class="question-grid">
+              <button
+                class="question-card"
+                data-question="What was billed and collected?"
+                type="button"
+              >
+                <span>01</span><strong>What was billed and collected?</strong
+                ><small
+                  >Compare the period, then inspect source invoices and
+                  receipts.</small
+                ><b>Explore ↗</b></button
+              ><button
+                class="question-card"
+                data-question="What is overdue?"
+                type="button"
+              >
+                <span>02</span><strong>What is overdue?</strong
+                ><small
+                  >See aging and open the accounts behind each range.</small
+                ><b>Explore ↗</b></button
+              ><button
+                class="question-card"
+                data-question="Which records were corrected?"
+                type="button"
+              >
+                <span>03</span><strong>Which records were corrected?</strong
+                ><small
+                  >Trace linked reversals with actor, time, and reason.</small
+                ><b>Explore ↗</b>
+              </button>
+            </div>
+          </section>
+
+          <section class="view-panel" id="view-system" hidden>
+            <div class="page-heading">
+              <div>
+                <p class="context-label">System</p>
+                <h1>Operational health</h1>
+                <p class="page-description">
+                  A calm view of safety and recovery work.
+                </p>
+              </div>
+            </div>
+            <div class="summary-strip health-strip">
+              <div><small>Database</small><strong>Ready</strong></div>
+              <div><small>Attachments</small><strong>Ready</strong></div>
+              <div><small>Backup storage</small><strong>Ready</strong></div>
+            </div>
+            <div class="surface-card system-feature">
+              <div>
+                <p class="context-label">Last verified backup</p>
+                <h2>10 October 2026 · 11:58 AM</h2>
+                <p>
+                  Review a backup before starting a restore. Recovery is a
+                  guarded, separate flow.
+                </p>
+              </div>
+              <button
+                class="button button-primary"
+                id="reviewBackup"
+                type="button"
+              >
+                Review backups
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="drawer-scrim" id="drawerScrim" hidden></div>
+    <div class="sheet-scrim" id="sheetScrim" hidden></div>
+    <aside
+      class="detail-sheet"
+      id="detailSheet"
+      aria-label="Record details"
+      aria-modal="true"
+      role="dialog"
+      hidden
+    >
+      <div class="sheet-head">
+        <span class="context-label" id="sheetEyebrow">Account</span
+        ><button
+          class="icon-button"
+          id="sheetClose"
+          type="button"
+          aria-label="Close details"
+        >
+          ×
+        </button>
+      </div>
+      <div id="sheetBody"></div>
+    </aside>
+
+    <div class="wizard-backdrop" id="wizardBackdrop" hidden></div>
+    <section
+      class="wizard"
+      id="wizard"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="wizardTitle"
+      hidden
+    >
+      <div class="wizard-top">
+        <div class="wizard-brand">
+          <span class="brand-mark small">BC</span><span>Receive payment</span>
+        </div>
+        <button
+          class="icon-button wizard-close"
+          id="wizardClose"
+          type="button"
+          aria-label="Close payment flow"
+        >
+          ×
+        </button>
+      </div>
+      <div class="wizard-progress" id="wizardProgress"></div>
+      <div class="wizard-content">
+        <p class="context-label" id="wizardCounter">Step 1 of 4</p>
+        <h1 id="wizardTitle">Find the customer</h1>
+        <p class="wizard-subtitle" id="wizardSubtitle">
+          Confirm who this payment belongs to before entering an amount.
+        </p>
+        <div id="wizardStepContent"></div>
+        <p class="field-error" id="wizardError" role="alert" hidden></p>
+      </div>
+      <div class="wizard-footer">
+        <button class="button button-quiet" id="wizardBack" type="button">
+          Back</button
+        ><span class="wizard-footnote">Prototype only · Nothing is posted</span
+        ><button class="button button-primary" id="wizardNext" type="button">
+          Continue
+        </button>
+      </div>
+    </section>
+  </body>
+</html>

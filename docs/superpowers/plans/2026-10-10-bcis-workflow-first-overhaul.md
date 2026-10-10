@@ -58,7 +58,7 @@ Use the existing names until a slice actually extracts a component. The paths un
 ### Task 0.2: Validate tasks and a clickable prototype
 
 - [ ] Ask one representative each of owner, cashier, supervisor, auditor, and technician to perform two real-world tasks using synthetic records. Record where they hesitate, mis-click, backtrack, or need a table.
-- [ ] Prototype three shell/card concepts and one Receive payment wizard using actual BCIS terminology and data. Compare at 1440×900 and 960×640 before choosing final tokens/layout.
+- [x] Prototype three shell/card concepts and one Receive payment wizard using BCIS terminology and synthetic data. The [clickable prototype](../../prototypes/workflow-first/README.md) was visually compared at 1440×900 and 960×640, plus narrower 720×900 and 390×844 layouts. Final token/layout choice remains subject to staff observation.
 - [ ] Resolve whether service work belongs under Customers or Field work for the technician based on task observations. Keep the selected IA consistent across sidebar, search, and result breadcrumbs.
 - [ ] Freeze a short copy glossary: subscriber/account/service, draft/finalized/posted, payment/verification, arrears/overdue, batch/remittance. Fix contradictory wording before component work.
 
