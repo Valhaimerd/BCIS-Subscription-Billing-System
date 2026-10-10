@@ -238,7 +238,7 @@ describe('authenticated desktop shell', () => {
     await user.type(screen.getByLabelText('Username'), 'owner');
     await user.type(screen.getByLabelText('Password'), 'correct-password');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Today' })).toBeVisible();
     expect(window.bcis?.auth.login).toHaveBeenCalledWith({
       username: 'owner',
       password: 'correct-password',
@@ -269,9 +269,9 @@ describe('authenticated desktop shell', () => {
     expect(window.bcis?.reports.dashboard).not.toHaveBeenCalled();
   });
 
-  it('keeps page context truthful and selects Home without inert controls', async () => {
+  it('keeps page context truthful and selects Today without inert controls', async () => {
     const { container } = renderApp();
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Today' })).toBeVisible();
     expect(container.querySelectorAll('main h1')).toHaveLength(1);
     expect(container.querySelector('.topbar-context')).not.toBeInTheDocument();
     expect(
@@ -279,7 +279,7 @@ describe('authenticated desktop shell', () => {
         'Your permitted billing and collection work begins here.',
       ),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -296,7 +296,7 @@ describe('authenticated desktop shell', () => {
   it('persists the collapsed rail while keeping the active destination highlighted', async () => {
     const user = userEvent.setup();
     renderApp();
-    await screen.findByRole('heading', { name: 'Home' });
+    await screen.findByRole('heading', { name: 'Today' });
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' }),
@@ -318,41 +318,36 @@ describe('authenticated desktop shell', () => {
   it('restores the collapsed preference when the authenticated shell is created again', async () => {
     localStorage.setItem('bcis.sidebar.collapsed', 'true');
     renderApp();
-    await screen.findByRole('heading', { name: 'Home' });
+    await screen.findByRole('heading', { name: 'Today' });
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' }),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Home' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute(
       'aria-current',
       'page',
     );
   });
 
-  it('allows navigation groups to close but keeps the current group expanded', async () => {
+  it('keeps permitted destinations visible without nested group toggles', async () => {
     const user = userEvent.setup();
     renderApp();
-    await screen.findByRole('heading', { name: 'Home' });
-    const revenue = screen.getByRole('button', { name: 'Revenue' });
-    expect(revenue).toHaveAttribute('aria-expanded', 'true');
-    await user.click(revenue);
-    expect(revenue).toHaveAttribute('aria-expanded', 'false');
-    expect(
-      screen.queryByRole('button', { name: 'Payments' }),
-    ).not.toBeInTheDocument();
-    await user.click(revenue);
+    await screen.findByRole('heading', { name: 'Today' });
+    expect(screen.getByText('Money')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Payments' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Payments' }));
     expect(
       await screen.findByRole('heading', { name: 'Payments' }),
     ).toBeVisible();
-    expect(revenue).toHaveAttribute('aria-expanded', 'true');
-    await user.click(revenue);
-    expect(revenue).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Payments' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 
   it('closes the compact navigation with Escape and restores focus to its opener', async () => {
     const user = userEvent.setup();
     renderApp();
-    await screen.findByRole('heading', { name: 'Home' });
+    await screen.findByRole('heading', { name: 'Today' });
     const opener = screen.getByRole('button', { name: 'Open navigation menu' });
     await user.click(opener);
     const close = screen.getByRole('button', {
@@ -581,7 +576,7 @@ describe('authenticated desktop shell', () => {
     expect(await screen.findByText('Session locked')).toBeVisible();
     await user.type(screen.getByLabelText('Password'), 'correct-password');
     await user.click(screen.getByRole('button', { name: 'Unlock' }));
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Today' })).toBeVisible();
   });
 
   it('opens the real receivables workspace for an authorized user', async () => {

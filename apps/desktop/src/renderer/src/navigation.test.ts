@@ -26,12 +26,12 @@ describe('visibleNavigation', () => {
     expect(views).toEqual([
       'Home',
       'Subscribers',
+      'Services',
       'Plans',
       'Billing',
       'Payments',
       'Collections',
       'Receivables',
-      'Services',
       'Reports',
       'Backup & recovery',
     ]);
@@ -73,7 +73,7 @@ describe('visibleNavigation', () => {
   it('shows technician customer and service work without financial pages', () => {
     expect(
       viewIds(['subscriber.view', 'service.view', 'service.manage']),
-    ).toEqual(['Home', 'Subscribers', 'Plans', 'Services']);
+    ).toEqual(['Home', 'Subscribers', 'Services', 'Plans']);
   });
 
   it('keeps read-only viewer navigation based on view permissions', () => {
@@ -90,12 +90,12 @@ describe('visibleNavigation', () => {
     ).toEqual([
       'Home',
       'Subscribers',
+      'Services',
       'Plans',
       'Billing',
       'Payments',
       'Collections',
       'Receivables',
-      'Services',
       'Reports',
     ]);
   });

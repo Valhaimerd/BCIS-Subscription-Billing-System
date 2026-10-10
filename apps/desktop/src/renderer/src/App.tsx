@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -296,9 +295,6 @@ function AuthenticatedShell({
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(readSidebarCollapsed);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
-    {},
-  );
   const [activeView, setActiveView] = useState<AppViewId>('Home');
   const [initialSubscriberId, setInitialSubscriberId] = useState<string>();
   const sidebarRef = useRef<HTMLElement>(null);
@@ -309,10 +305,6 @@ function AuthenticatedShell({
     if (!navigator.userAgent.includes('jsdom')) window.scrollTo({ top: 0 });
   }, [activeView]);
   const navigationGroups = visibleNavigation(session.user.permissions);
-  const activeGroup = navigationGroups.find(({ items }) =>
-    items.some(({ id }) => id === activeView),
-  );
-  const activeGroupLabel = activeGroup?.label;
   const initials = session.user.fullName
     .split(/\s+/)
     .map((part) => part[0])
@@ -327,15 +319,6 @@ function AuthenticatedShell({
       // Sidebar state remains usable if the host disables local storage.
     }
   }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    if (!activeGroupLabel) return;
-    setExpandedGroups((groups) =>
-      groups[activeGroupLabel] === true
-        ? groups
-        : { ...groups, [activeGroupLabel]: true },
-    );
-  }, [activeGroupLabel]);
 
   useEffect(() => {
     if (!navigationOpen) {
@@ -378,15 +361,9 @@ function AuthenticatedShell({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [navigationOpen]);
 
-  function selectNavigation(id: AppViewId, groupLabel: string) {
+  function selectNavigation(id: AppViewId) {
     setActiveView(id);
-    setExpandedGroups((groups) => ({ ...groups, [groupLabel]: true }));
     setNavigationOpen(false);
-  }
-
-  function toggleGroup(label: string, isOpen: boolean) {
-    if (label === activeGroupLabel) return;
-    setExpandedGroups((groups) => ({ ...groups, [label]: !isOpen }));
   }
 
   return (
@@ -420,41 +397,43 @@ function AuthenticatedShell({
               <ChevronLeft aria-hidden="true" size={18} />
             </button>
           ) : null}
+          <button
+            aria-label={
+              sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+            }
+            className="sidebar-toggle"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            type="button"
+          >
+            {sidebarCollapsed ? (
+              <ChevronRight aria-hidden="true" size={18} />
+            ) : (
+              <ChevronLeft aria-hidden="true" size={18} />
+            )}
+          </button>
         </div>
         <nav aria-label="Primary navigation">
           {navigationGroups.map(({ label, items }) => (
             <section className="nav-group" key={label}>
-              {label !== 'Home' ? (
-                <button
-                  aria-expanded={expandedGroups[label] !== false}
-                  className="nav-group-toggle"
-                  onClick={() =>
-                    toggleGroup(label, expandedGroups[label] !== false)
-                  }
-                  type="button"
-                >
-                  <span>{label}</span>
-                  <ChevronDown aria-hidden="true" size={14} />
-                </button>
+              {label !== 'Today' ? (
+                <p className="nav-group-label">{label}</p>
               ) : null}
-              <div
-                className="nav-group-items"
-                hidden={!sidebarCollapsed && expandedGroups[label] === false}
-              >
-                {items.map(({ id }) => {
+              <div className="nav-group-items">
+                {items.map(({ id, label: itemLabel }) => {
                   const Icon = viewIcons[id];
                   return (
                     <button
                       aria-current={id === activeView ? 'page' : undefined}
-                      aria-label={sidebarCollapsed ? id : undefined}
+                      aria-label={sidebarCollapsed ? itemLabel : undefined}
                       className="nav-item"
                       key={id}
-                      onClick={() => selectNavigation(id, label)}
-                      title={sidebarCollapsed ? id : undefined}
+                      onClick={() => selectNavigation(id)}
+                      title={sidebarCollapsed ? itemLabel : undefined}
                       type="button"
                     >
                       <Icon aria-hidden="true" size={18} />
-                      <span className="nav-item-label">{id}</span>
+                      <span className="nav-item-label">{itemLabel}</span>
                     </button>
                   );
                 })}
@@ -486,21 +465,6 @@ function AuthenticatedShell({
               <ChevronLeft aria-hidden="true" size={20} />
             ) : (
               <Menu aria-hidden="true" size={20} />
-            )}
-          </button>
-          <button
-            aria-label={
-              sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
-            }
-            className="sidebar-toggle"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            type="button"
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight aria-hidden="true" size={18} />
-            ) : (
-              <ChevronLeft aria-hidden="true" size={18} />
             )}
           </button>
           <SubscriberQuickSearch
@@ -539,10 +503,8 @@ function AuthenticatedShell({
         <main id="main-content" tabIndex={-1}>
           <header className="page-heading">
             <div>
-              <p>
-                {activeView === 'Home' ? 'Operations overview' : 'Workspace'}
-              </p>
-              <h1>{activeView}</h1>
+              <p>{activeView === 'Home' ? 'Your workspace' : 'Workspace'}</p>
+              <h1>{activeView === 'Home' ? 'Today' : activeView}</h1>
               <span>
                 {activeView === 'Home'
                   ? 'Your permitted billing and collection work begins here.'

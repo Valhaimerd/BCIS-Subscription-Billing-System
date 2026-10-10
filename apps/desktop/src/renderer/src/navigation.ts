@@ -14,43 +14,62 @@ export type AppViewId =
 
 export type NavigationGroup = {
   label: string;
-  items: Array<{ id: AppViewId; permission: PermissionCode | null }>;
+  items: Array<{
+    id: AppViewId;
+    label: string;
+    permission: PermissionCode | null;
+  }>;
 };
 
 const navigation: NavigationGroup[] = [
-  { label: 'Home', items: [{ id: 'Home', permission: null }] },
+  { label: 'Today', items: [{ id: 'Home', label: 'Today', permission: null }] },
   {
     label: 'Customers',
     items: [
-      { id: 'Subscribers', permission: 'subscriber.view' },
-      { id: 'Plans', permission: 'subscriber.view' },
+      {
+        id: 'Subscribers',
+        label: 'Subscribers',
+        permission: 'subscriber.view',
+      },
+      { id: 'Services', label: 'Services', permission: 'service.view' },
+      { id: 'Plans', label: 'Plans', permission: 'subscriber.view' },
     ],
   },
   {
-    label: 'Revenue',
+    label: 'Money',
     items: [
-      { id: 'Billing', permission: 'billing.view' },
-      { id: 'Payments', permission: 'payment.view' },
+      { id: 'Billing', label: 'Billing', permission: 'billing.view' },
+      { id: 'Payments', label: 'Payments', permission: 'payment.view' },
     ],
   },
   {
     label: 'Field work',
     items: [
-      { id: 'Collections', permission: 'collection.view' },
-      { id: 'Receivables', permission: 'receivable.view' },
+      {
+        id: 'Collections',
+        label: 'Collections',
+        permission: 'collection.view',
+      },
+      {
+        id: 'Receivables',
+        label: 'Receivables',
+        permission: 'receivable.view',
+      },
     ],
   },
   {
-    label: 'Service',
-    items: [{ id: 'Services', permission: 'service.view' }],
-  },
-  {
     label: 'Insights',
-    items: [{ id: 'Reports', permission: 'report.view' }],
+    items: [{ id: 'Reports', label: 'Reports', permission: 'report.view' }],
   },
   {
     label: 'System',
-    items: [{ id: 'Backup & recovery', permission: 'backup.create' }],
+    items: [
+      {
+        id: 'Backup & recovery',
+        label: 'Backup & recovery',
+        permission: 'backup.create',
+      },
+    ],
   },
 ];
 

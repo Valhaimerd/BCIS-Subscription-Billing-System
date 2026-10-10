@@ -2,7 +2,7 @@
 
 ## 1. Sign in and navigation
 
-Start the desktop client, enter the assigned username and password, then select **Sign in**. The left navigation shows only the areas permitted for the signed-in role; the API independently checks every operation. On a wide window, use **Collapse sidebar** to switch to the icon rail; **Expand sidebar** restores the labels. The preference is remembered. Group headings can hide destinations, while the group containing the current page stays open. At compact widths, **Open navigation menu** opens a drawer; choose a destination, select **Close navigation**, press `Esc`, or click the shaded area to close it.
+Start the desktop client, enter the assigned username and password, then select **Sign in**. The left navigation shows only the destinations permitted for the signed-in role; the API independently checks every operation. Destinations are grouped under Today, Customers, Money, Field work, Insights, and System. On a wide window, use **Collapse sidebar** in the sidebar header to switch to the icon rail; **Expand sidebar** there restores the labels. The preference is remembered. In the rail, hover an icon to see its name; each icon also has an accessible label, and the current destination stays highlighted. At compact widths, **Open navigation menu** opens a drawer; choose a destination, select **Close navigation**, press `Esc`, or click the shaded area to close it.
 
 Each workspace keeps one page title and purpose line above its work area. The compact top bar stays available for subscriber search and session controls, with an opaque background so scrolling content does not show through it.
 

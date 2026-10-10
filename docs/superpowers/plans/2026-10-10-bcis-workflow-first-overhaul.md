@@ -59,12 +59,15 @@ Use the existing names until a slice actually extracts a component. The paths un
 
 - [ ] Ask one representative each of owner, cashier, supervisor, auditor, and technician to perform two real-world tasks using synthetic records. Record where they hesitate, mis-click, backtrack, or need a table.
 - [x] Prototype three shell/card concepts and one Receive payment wizard using BCIS terminology and synthetic data. The [clickable prototype](../../prototypes/workflow-first/README.md) was visually compared at 1440×900 and 960×640, plus narrower 720×900 and 390×844 layouts. Final token/layout choice remains subject to staff observation.
+- [x] Owner selected Concept A (Workbench) as the direction for the live shell. Staff task observations remain open before changing domain workflows.
 - [ ] Resolve whether service work belongs under Customers or Field work for the technician based on task observations. Keep the selected IA consistent across sidebar, search, and result breadcrumbs.
 - [ ] Freeze a short copy glossary: subscriber/account/service, draft/finalized/posted, payment/verification, arrears/overdue, batch/remittance. Fix contradictory wording before component work.
 
 **Done when:** Owner can review clickable shell and one complete wizard, and task observations support the chosen navigation. This is a design gate, not a demand for a new framework.
 
 ## Phase 1 — Foundations that make every later slice coherent
+
+The first live slice implements Workbench tokens and the permission-filtered shell on branch `feature/workflow-first-shell`. It moves the collapse control into the sidebar, shows supported destinations without nested group toggles, and preserves the saved icon-rail preference. Shared work cards, sheets, wizard frame, and role journey changes remain separate slices below.
 
 ### Task 1: Tokens, interaction components, and real clickable controls
 
