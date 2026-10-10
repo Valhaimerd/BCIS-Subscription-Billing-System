@@ -247,7 +247,11 @@ try {
   await planPriceDialog.waitFor({ state: 'hidden' });
 
   await page.getByRole('button', { name: 'Billing' }).click();
-  await page.getByRole('heading', { name: 'Monthly runs' }).waitFor();
+  await page.getByRole('heading', { name: 'Billing months' }).waitFor();
+  await page.screenshot({
+    path: 'output/playwright/bcis-seeded-billing-desk.png',
+  });
+  await page.getByRole('button', { name: 'Open register' }).click();
   await page.locator('tbody .record-link').first().click();
   const invoiceDialog = page.getByLabel('Invoice detail');
   await invoiceDialog.waitFor();

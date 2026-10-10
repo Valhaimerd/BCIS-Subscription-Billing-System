@@ -1,0 +1,292 @@
+.billing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 28px;
+  padding: 28px;
+  background: linear-gradient(115deg, #fff 35%, #eef5ff);
+}
+.billing-hero h2 {
+  margin: 5px 0 8px;
+  font-size: clamp(26px, 3vw, 36px);
+  color: var(--navy);
+}
+.billing-hero p,
+.billing-flow-body p {
+  max-width: 640px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.billing-hero-metrics,
+.billing-eligibility-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+.billing-hero-metrics > div,
+.billing-eligibility-grid > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px #18385a0c;
+}
+.billing-hero-metrics span,
+.billing-eligibility-grid span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.billing-hero-metrics strong,
+.billing-eligibility-grid strong {
+  color: var(--navy);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.billing-hero-action {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+.billing-hero-action label {
+  font-size: 12px;
+  font-weight: 700;
+}
+.billing-hero-action input {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.billing-hero-action button {
+  min-height: 46px;
+}
+.billing-flow {
+  padding: 25px;
+  animation: billing-enter 0.24s ease-out;
+}
+.billing-flow-heading,
+.billing-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.billing-flow-heading h2,
+.billing-section-heading h2 {
+  margin: 4px 0;
+  color: var(--navy);
+}
+.billing-flow-heading > button,
+.billing-flow-actions > button:not(.primary-action),
+.table-card .card-heading > button {
+  border: 1px solid #a7c0e7;
+  border-radius: 10px;
+  background: #eff5ff;
+  color: #183c73;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.billing-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  list-style: none;
+  margin: 22px 0;
+  padding: 0;
+}
+.billing-flow-steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px;
+  background: #f1f5fa;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.billing-flow-steps li.is-current {
+  background: #e4efff;
+  color: #174178;
+  font-weight: 700;
+}
+.billing-flow-steps li span {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
+  border-radius: 50%;
+  background: #fff;
+}
+.billing-flow-body h3 {
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-size: 21px;
+}
+.billing-eligibility-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.billing-eligibility-grid small {
+  color: var(--muted);
+}
+.billing-exceptions {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff8eb;
+  color: #8a4a14;
+}
+.billing-exceptions p {
+  margin: 5px 0 0;
+  color: inherit;
+}
+.billing-flow-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.billing-flow-actions button {
+  min-height: 42px;
+}
+.billing-months {
+  padding: 4px 0;
+}
+.billing-section-heading > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.billing-month-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.billing-month-card,
+.billing-invoice-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  background: #fff;
+  color: var(--navy);
+  text-align: left;
+  box-shadow: 0 8px 24px #18385a0b;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.billing-month-card:hover,
+.billing-invoice-card:hover {
+  transform: translateY(-2px);
+  border-color: #8fb5e9;
+  box-shadow: 0 14px 30px #18385a1c;
+}
+.billing-month-card strong {
+  font-size: 17px;
+}
+.billing-month-card > span:not(.record-status),
+.billing-month-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.billing-invoice-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px;
+}
+.billing-invoice-card {
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+}
+.billing-invoice-card span {
+  display: grid;
+  gap: 5px;
+}
+.billing-invoice-card small {
+  color: var(--muted);
+}
+.billing-register-pages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.billing-register-pages > div {
+  display: flex;
+  gap: 8px;
+}
+.billing-register-pages button {
+  border: 1px solid #a7c0e7;
+  border-radius: 9px;
+  padding: 8px 12px;
+  background: #eff5ff;
+  color: #183c73;
+  font-weight: 700;
+  cursor: pointer;
+}
+.billing-register-pages button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+@keyframes billing-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 800px) {
+  .billing-hero {
+    grid-template-columns: 1fr;
+  }
+  .billing-hero-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .billing-flow-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .billing-invoice-preview {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .billing-hero-metrics,
+  .billing-eligibility-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .billing-flow-steps {
+    grid-template-columns: 1fr 1fr;
+  }
+  .billing-flow-actions button {
+    flex: 1 1 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .billing-flow {
+    animation: none;
+  }
+  .billing-month-card,
+  .billing-invoice-card {
+    transition: none;
+  }
+}

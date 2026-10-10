@@ -81,6 +81,13 @@ ipcMain.handle(
 );
 ipcMain.handle('billing:cycles:list', () => authClient.data('/billing-cycles'));
 ipcMain.handle(
+  'billing:cycles:eligibility',
+  (_event, periodYear: number, periodMonth: number) =>
+    authClient.data(
+      `/billing-cycles/eligibility?${new URLSearchParams({ periodYear: String(periodYear), periodMonth: String(periodMonth) })}`,
+    ),
+);
+ipcMain.handle(
   'billing:cycles:generate',
   (_event, periodYear: number, periodMonth: number) =>
     authClient.data('/billing-cycles', {
@@ -100,6 +107,7 @@ ipcMain.handle(
       page: number;
       pageSize: number;
       subscriberId?: string;
+      billingCycleId?: string;
     },
   ) => {
     const values: Record<string, string> = {
@@ -108,6 +116,7 @@ ipcMain.handle(
       pageSize: String(query.pageSize),
     };
     if (query.subscriberId) values.subscriberId = query.subscriberId;
+    if (query.billingCycleId) values.billingCycleId = query.billingCycleId;
     return authClient.data(`/invoices?${new URLSearchParams(values)}`);
   },
 );

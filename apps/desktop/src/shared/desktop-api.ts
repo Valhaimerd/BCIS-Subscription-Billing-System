@@ -88,6 +88,10 @@ export interface DesktopApi {
   };
   billing: {
     listCycles: () => Promise<BillingCycleDto[]>;
+    eligibility: (
+      periodYear: number,
+      periodMonth: number,
+    ) => Promise<import('@bcis/contracts').BillingEligibilityDto>;
     generate: (
       periodYear: number,
       periodMonth: number,
@@ -98,6 +102,7 @@ export interface DesktopApi {
       page: number;
       pageSize: number;
       subscriberId?: string;
+      billingCycleId?: string;
     }) => Promise<Paginated<InvoiceSummaryDto>>;
     getInvoice: (id: string) => Promise<InvoiceDetailDto>;
     addAdjustment: (

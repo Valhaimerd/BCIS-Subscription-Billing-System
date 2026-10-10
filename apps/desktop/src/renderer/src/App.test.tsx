@@ -82,6 +82,17 @@ function renderApp(current: DesktopSession | null = ownerSession) {
     },
     billing: {
       listCycles: vi.fn(async () => []),
+      eligibility: vi.fn(async () => ({
+        periodYear: 2026,
+        periodMonth: 10,
+        eligibleServices: 0,
+        existingInvoices: 0,
+        remainingServices: 0,
+        estimatedNewCentavos: 0,
+        inactiveServices: 0,
+        futureStartServices: 0,
+        cycleStatus: 'NOT_STARTED' as const,
+      })),
       generate: vi.fn(),
       finalize: vi.fn(),
       listInvoices: vi.fn(async () => ({

@@ -1,5 +1,6 @@
 import type {
   BillingCycleDto,
+  BillingEligibilityDto,
   InvoiceDetailDto,
   InvoiceSummaryDto,
   LedgerEntryDto,
@@ -14,6 +15,7 @@ import {
   ledgerEntries,
   paymentAllocations,
   payments,
+  receipts,
   serviceAccounts,
   servicePlans,
   subscribers,
@@ -45,6 +47,55 @@ function today() {
 
 export class BillingService {
   constructor(private readonly db: Database) {}
+
+  async eligibility(input: {
+    periodYear: number;
+    periodMonth: number;
+  }): Promise<BillingEligibilityDto> {
+    const period = billingPeriod(input.periodYear, input.periodMonth, 1);
+    const [cycle] = await this.db
+      .select()
+      .from(billingCycles)
+      .where(
+        and(
+          eq(billingCycles.periodYear, input.periodYear),
+          eq(billingCycles.periodMonth, input.periodMonth),
+        ),
+      );
+    const rows = await this.db
+      .select({
+        status: serviceAccounts.status,
+        billingStartDate: serviceAccounts.billingStartDate,
+        rate: serviceAccounts.currentRateCentavos,
+        invoiceId: invoices.id,
+      })
+      .from(serviceAccounts)
+      .leftJoin(
+        invoices,
+        and(
+          eq(invoices.serviceAccountId, serviceAccounts.id),
+          cycle ? eq(invoices.billingCycleId, cycle.id) : sql`false`,
+        ),
+      );
+    const eligible = rows.filter(
+      (row) =>
+        row.status === 'ACTIVE' && row.billingStartDate <= period.lastDate,
+    );
+    const remaining = eligible.filter((row) => !row.invoiceId);
+    return {
+      ...input,
+      eligibleServices: eligible.length,
+      existingInvoices: eligible.length - remaining.length,
+      remainingServices: remaining.length,
+      estimatedNewCentavos: remaining.reduce((sum, row) => sum + row.rate, 0),
+      inactiveServices: rows.filter((row) => row.status !== 'ACTIVE').length,
+      futureStartServices: rows.filter(
+        (row) =>
+          row.status === 'ACTIVE' && row.billingStartDate > period.lastDate,
+      ).length,
+      cycleStatus: cycle?.status ?? 'NOT_STARTED',
+    };
+  }
 
   async generateDrafts(
     input: { periodYear: number; periodMonth: number },
@@ -134,7 +185,8 @@ export class BillingService {
       const [cycle] = await transaction
         .select()
         .from(billingCycles)
-        .where(eq(billingCycles.id, id));
+        .where(eq(billingCycles.id, id))
+        .for('update');
       if (!cycle) throw new BillingError(404, 'Billing cycle not found.');
       if (cycle.status === 'FINALIZED') return { finalized: 0 };
       const drafts = await transaction
@@ -143,6 +195,8 @@ export class BillingService {
         .where(
           and(eq(invoices.billingCycleId, id), eq(invoices.status, 'DRAFT')),
         );
+      if (!drafts.length)
+        throw new BillingError(409, 'There are no draft invoices to finalize.');
       const finalizedAt = new Date();
       for (const invoice of drafts) {
         await transaction.insert(ledgerEntries).values({
@@ -206,12 +260,16 @@ export class BillingService {
     pageSize: number;
     status?: InvoiceSummaryDto['status'] | undefined;
     subscriberId?: string | undefined;
+    billingCycleId?: string | undefined;
   }): Promise<Paginated<InvoiceSummaryDto>> {
     const term = `%${query.q}%`;
     const where = and(
       query.status ? eq(invoices.status, query.status) : undefined,
       query.subscriberId
         ? eq(invoices.subscriberId, query.subscriberId)
+        : undefined,
+      query.billingCycleId
+        ? eq(invoices.billingCycleId, query.billingCycleId)
         : undefined,
       query.q
         ? or(
@@ -254,7 +312,7 @@ export class BillingService {
       .innerJoin(subscribers, eq(invoices.subscriberId, subscribers.id))
       .where(eq(invoices.id, id));
     if (!row) throw new BillingError(404, 'Invoice not found.');
-    const [summary, items, adjustmentRows] = await Promise.all([
+    const [summary, items, adjustmentRows, allocationRows] = await Promise.all([
       this.summary(
         row.invoice,
         row.subscriber.fullName,
@@ -270,6 +328,18 @@ export class BillingService {
         .from(adjustments)
         .where(eq(adjustments.invoiceId, id))
         .orderBy(asc(adjustments.createdAt)),
+      this.db
+        .select({
+          allocation: paymentAllocations,
+          paymentDate: payments.paymentDate,
+          paymentStatus: payments.status,
+          receiptNumber: receipts.receiptNumber,
+        })
+        .from(paymentAllocations)
+        .innerJoin(payments, eq(paymentAllocations.paymentId, payments.id))
+        .leftJoin(receipts, eq(receipts.paymentId, payments.id))
+        .where(eq(paymentAllocations.invoiceId, id))
+        .orderBy(asc(paymentAllocations.createdAt)),
     ]);
     return {
       ...summary,
@@ -289,6 +359,15 @@ export class BillingService {
           amountCentavos,
           reason,
           createdAt: createdAt.toISOString(),
+        }),
+      ),
+      allocations: allocationRows.map(
+        ({ allocation, paymentDate, paymentStatus, receiptNumber }) => ({
+          id: allocation.id,
+          amountCentavos: allocation.amountCentavos,
+          paymentDate: paymentDate.toISOString(),
+          receiptNumber,
+          status: paymentStatus,
         }),
       ),
     };

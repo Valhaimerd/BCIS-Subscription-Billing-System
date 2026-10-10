@@ -1,5 +1,6 @@
 import type {
   BillingCycleDto,
+  BillingEligibilityDto,
   InvoiceDetailDto,
   InvoiceSummaryDto,
   LedgerEntryDto,
@@ -8,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { ActionDialog } from './ActionDialog';
 import { ModalDialog } from './ModalDialog';
+import './billing-journey.css';
 
 const money = (centavos: number) =>
   new Intl.NumberFormat('en-PH', {
@@ -30,7 +32,13 @@ function periodLabel(year: number, month: number) {
   });
 }
 
-export function BillingView({ canGenerate }: { canGenerate: boolean }) {
+export function BillingView({
+  canGenerate,
+  onOpenReceipt,
+}: {
+  canGenerate: boolean;
+  onOpenReceipt?: ((receiptNumber: string) => void) | undefined;
+}) {
   const [cycles, setCycles] = useState<BillingCycleDto[]>([]);
   const [invoices, setInvoices] = useState<InvoiceSummaryDto[]>([]);
   const [selected, setSelected] = useState<InvoiceDetailDto | null>(null);
@@ -44,13 +52,30 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
   );
   const [finalizing, setFinalizing] = useState(false);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [invoiceTotal, setInvoiceTotal] = useState(0);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState(currentPeriod());
+  const [step, setStep] = useState(0);
+  const [eligibility, setEligibility] = useState<BillingEligibilityDto | null>(
+    null,
+  );
+  const [eligibilityLoading, setEligibilityLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
   const loadRequest = useRef(0);
   const invoiceRequest = useRef(0);
+  const eligibilityRequest = useRef(0);
+  const generatingGuard = useRef(false);
+  const [periodYear, periodMonth] = period.split('-').map(Number);
+  const activeCycle = cycles.find(
+    (cycle) =>
+      cycle.periodYear === periodYear && cycle.periodMonth === periodMonth,
+  );
 
-  async function load(nextQuery = query) {
+  async function load(nextQuery = query, nextPage = page) {
     const request = ++loadRequest.current;
     if (!window.bcis) {
       setLoading(false);
@@ -59,17 +84,25 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
     setLoading(true);
     setError('');
     try {
-      const [cycleRows, invoiceRows] = await Promise.all([
-        window.bcis.billing.listCycles(),
-        window.bcis.billing.listInvoices({
-          q: nextQuery,
-          page: 1,
-          pageSize: 50,
-        }),
-      ]);
+      const cycleRows = await window.bcis.billing.listCycles();
+      const selectedCycle = cycleRows.find(
+        (cycle) =>
+          `${cycle.periodYear}-${String(cycle.periodMonth).padStart(2, '0')}` ===
+          period,
+      );
+      const invoiceRows = selectedCycle
+        ? await window.bcis.billing.listInvoices({
+            q: nextQuery,
+            page: nextPage,
+            pageSize: 50,
+            billingCycleId: selectedCycle.id,
+          })
+        : { items: [] as InvoiceSummaryDto[], total: 0 };
       if (request !== loadRequest.current) return;
       setCycles(cycleRows);
       setInvoices(invoiceRows.items);
+      setInvoiceTotal(invoiceRows.total);
+      setPage(nextPage);
     } catch (caught) {
       if (request === loadRequest.current) setError(errorMessage(caught));
     } finally {
@@ -77,23 +110,53 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
     }
   }
   useEffect(() => {
-    void load();
-  }, []);
+    void load('', 1);
+  }, [period]);
 
-  async function generate(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  useEffect(() => {
+    const request = ++eligibilityRequest.current;
+    if (!window.bcis?.billing.eligibility) return;
+    setEligibility(null);
+    setEligibilityLoading(true);
+    void window.bcis.billing
+      .eligibility(periodYear!, periodMonth!)
+      .then((result) => {
+        if (request === eligibilityRequest.current) setEligibility(result);
+      })
+      .catch((caught) => {
+        if (request === eligibilityRequest.current)
+          setError(errorMessage(caught));
+      })
+      .finally(() => {
+        if (request === eligibilityRequest.current)
+          setEligibilityLoading(false);
+      });
+    return () => {
+      eligibilityRequest.current += 1;
+    };
+  }, [period]);
+
+  async function generate() {
+    if (generatingGuard.current) return;
+    generatingGuard.current = true;
+    setGenerating(true);
     setError('');
-    const period = String(new FormData(event.currentTarget).get('period'));
     setNotice('');
-    const [year, month] = period.split('-').map(Number);
     try {
-      const result = await window.bcis!.billing.generate(year!, month!);
+      const result = await window.bcis!.billing.generate(
+        periodYear!,
+        periodMonth!,
+      );
       setNotice(
         `${result.created} draft invoices created; ${result.skipped} already existed.`,
       );
       await load();
+      setStep(2);
     } catch (caught) {
       setError(errorMessage(caught));
+    } finally {
+      generatingGuard.current = false;
+      setGenerating(false);
     }
   }
 
@@ -107,6 +170,7 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
       );
       setConfirmCycle(null);
       await load();
+      setStep(0);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -150,30 +214,220 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
 
   return (
     <div className="data-layout">
-      {canGenerate ? (
-        <form className="data-card billing-generator" onSubmit={generate}>
-          <div>
-            <span className="section-kicker">Monthly billing</span>
-            <h2>Generate draft cycle</h2>
-            <p>
-              Choose a billing period, review the draft totals, then finalize to
-              post invoices to subscriber ledgers. Repeated generation skips
-              existing service-period invoices.
+      <section
+        className="billing-hero data-card"
+        aria-label="Selected billing month"
+      >
+        <div className="billing-hero-copy">
+          <span className="section-kicker">Billing run</span>
+          <h2>{periodLabel(periodYear!, periodMonth!)}</h2>
+          <p>
+            {activeCycle?.status === 'FINALIZED'
+              ? 'Posted to subscriber ledgers. This run is part of financial history.'
+              : activeCycle?.status === 'DRAFT'
+                ? 'Drafts are ready for review before posting.'
+                : 'Choose a month to prepare charges for active services.'}
+          </p>
+          {activeCycle?.finalizedAt ? (
+            <p className="billing-posted-date">
+              Posted {new Date(activeCycle.finalizedAt).toLocaleString('en-PH')}
             </p>
+          ) : null}
+          <div className="billing-hero-metrics">
+            <div>
+              <span>Run state</span>
+              <strong>{activeCycle?.status ?? 'Not started'}</strong>
+            </div>
+            <div>
+              <span>
+                {activeCycle?.status === 'FINALIZED'
+                  ? 'Eligible now · live'
+                  : 'Eligible services'}
+              </span>
+              <strong>
+                {eligibilityLoading
+                  ? '…'
+                  : (eligibility?.eligibleServices ?? '—')}
+              </strong>
+            </div>
+            <div>
+              <span>Invoices</span>
+              <strong>{activeCycle?.invoiceCount ?? 0}</strong>
+            </div>
+            <div>
+              <span>Run total</span>
+              <strong>{money(activeCycle?.totalCentavos ?? 0)}</strong>
+            </div>
           </div>
-          <label>
-            Billing month
-            <input
-              defaultValue={currentPeriod()}
-              name="period"
-              required
-              type="month"
-            />
-          </label>
-          <button className="primary-action" type="submit">
-            Generate drafts
-          </button>
-        </form>
+        </div>
+        <div className="billing-hero-action">
+          <label htmlFor="billing-month">Billing month</label>
+          <input
+            id="billing-month"
+            onChange={(event) => {
+              setPeriod(event.target.value);
+              setStep(0);
+              setQuery('');
+              setError('');
+            }}
+            type="month"
+            value={period}
+          />
+          {canGenerate && activeCycle?.status !== 'FINALIZED' ? (
+            <button
+              className="primary-action"
+              onClick={() => setStep(activeCycle ? 2 : 1)}
+              type="button"
+            >
+              {activeCycle ? 'Review draft run' : 'Prepare billing'}
+            </button>
+          ) : null}
+        </div>
+      </section>
+      {canGenerate && step > 0 && activeCycle?.status !== 'FINALIZED' ? (
+        <section
+          aria-label="Generate billing"
+          className="billing-flow data-card"
+        >
+          <div className="billing-flow-heading">
+            <div>
+              <span className="section-kicker">Guided billing</span>
+              <h2>{step === 1 ? 'Review eligibility' : 'Review draft run'}</h2>
+            </div>
+            <button onClick={() => setStep(0)} type="button">
+              Close flow
+            </button>
+          </div>
+          <ol className="billing-flow-steps" aria-label="Billing steps">
+            {[
+              'Select month',
+              'Eligibility',
+              'Generate drafts',
+              'Review and post',
+            ].map((label, index) => (
+              <li
+                className={index <= (step === 1 ? 1 : 3) ? 'is-current' : ''}
+                key={label}
+              >
+                <span>{index + 1}</span>
+                {label}
+              </li>
+            ))}
+          </ol>
+          {step === 1 ? (
+            <div className="billing-flow-body">
+              <h3>Services for {periodLabel(periodYear!, periodMonth!)}</h3>
+              <p>
+                Active services with a billing start date on or before the last
+                day of this month are eligible. Counts are a live preview;
+                generation checks again when you continue.
+              </p>
+              {eligibilityLoading ? (
+                <p role="status">Checking service eligibility…</p>
+              ) : eligibility ? (
+                <>
+                  <div className="billing-eligibility-grid">
+                    <div>
+                      <span>Eligible services</span>
+                      <strong>{eligibility.eligibleServices}</strong>
+                    </div>
+                    <div>
+                      <span>Already invoiced</span>
+                      <strong>{eligibility.existingInvoices}</strong>
+                    </div>
+                    <div>
+                      <span>New drafts expected</span>
+                      <strong>{eligibility.remainingServices}</strong>
+                      <small>
+                        {money(eligibility.estimatedNewCentavos)} estimated
+                      </small>
+                    </div>
+                  </div>
+                  {eligibility.inactiveServices > 0 ||
+                  eligibility.futureStartServices > 0 ? (
+                    <div className="billing-exceptions">
+                      <strong>Not included this month</strong>
+                      <p>
+                        {eligibility.inactiveServices} inactive service
+                        {eligibility.inactiveServices === 1 ? '' : 's'} ·{' '}
+                        {eligibility.futureStartServices} future start
+                        {eligibility.futureStartServices === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="billing-flow-actions">
+                    <button onClick={() => setStep(0)} type="button">
+                      Back to month
+                    </button>
+                    <button
+                      className="primary-action"
+                      disabled={
+                        generating || eligibility.cycleStatus === 'FINALIZED'
+                      }
+                      onClick={() => void generate()}
+                      type="button"
+                    >
+                      {generating ? 'Generating…' : 'Generate drafts'}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : (
+            <div className="billing-flow-body">
+              {activeCycle ? (
+                <>
+                  <h3>
+                    {activeCycle.invoiceCount} draft invoices ready for review
+                  </h3>
+                  <p>
+                    Review the count and total, then open invoices below for
+                    line details. Posting adds ledger debits and cannot be
+                    undone; later corrections use linked adjustments or void
+                    records.
+                  </p>
+                  <div className="billing-eligibility-grid">
+                    <div>
+                      <span>Draft invoices</span>
+                      <strong>{activeCycle.invoiceCount}</strong>
+                    </div>
+                    <div>
+                      <span>Total to post</span>
+                      <strong>{money(activeCycle.totalCentavos)}</strong>
+                    </div>
+                    <div>
+                      <span>Period</span>
+                      <strong>{periodLabel(periodYear!, periodMonth!)}</strong>
+                    </div>
+                  </div>
+                  {activeCycle.invoiceCount === 0 ? (
+                    <div className="billing-exceptions">
+                      No eligible services produced invoices for this period.
+                    </div>
+                  ) : null}
+                  <div className="billing-flow-actions">
+                    <button onClick={() => setStep(1)} type="button">
+                      Review eligibility
+                    </button>
+                    <button onClick={() => setShowRegister(true)} type="button">
+                      View invoice register
+                    </button>
+                    <button
+                      className="primary-action"
+                      disabled={!activeCycle.invoiceCount}
+                      onClick={() => setConfirmCycle(activeCycle)}
+                      type="button"
+                    >
+                      Review and finalize
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p role="status">Refreshing draft run…</p>
+              )}
+            </div>
+          )}
+        </section>
       ) : null}
       {notice ? (
         <div className="success-notice" role="status">
@@ -192,80 +446,54 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
             : 'Loading billing records…'}
         </div>
       ) : null}
-      <section aria-busy={loading} className="data-card table-card">
-        <div className="card-heading">
+      <section
+        aria-busy={loading}
+        className="billing-months"
+        aria-label="Other billing months"
+      >
+        <div className="billing-section-heading">
           <div>
-            <span>Billing cycles</span>
-            <h2>Monthly runs</h2>
+            <span className="section-kicker">History</span>
+            <h2>Billing months</h2>
           </div>
+          <span>{cycles.length} runs</span>
         </div>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Period</th>
-                <th>Invoices</th>
-                <th>Total</th>
-                <th>Status</th>
-                <th>Draft review</th>
-                {canGenerate ? <th>Action</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {cycles.map((cycle) => (
-                <tr key={cycle.id}>
-                  <td>{periodLabel(cycle.periodYear, cycle.periodMonth)}</td>
-                  <td>{cycle.invoiceCount}</td>
-                  <td>{money(cycle.totalCentavos)}</td>
-                  <td>
-                    <span
-                      className={`record-status ${cycle.status === 'FINALIZED' ? 'active' : ''}`}
-                    >
-                      {cycle.status}
-                    </span>
-                  </td>
-                  <td>
-                    {cycle.status === 'DRAFT' ? (
-                      cycle.invoiceCount > 0 ? (
-                        <span className="draft-review-ready">
-                          {cycle.invoiceCount} draft invoices ready for review
-                        </span>
-                      ) : (
-                        <span className="draft-review-empty">
-                          No eligible services produced invoices for this
-                          period.
-                        </span>
-                      )
-                    ) : (
-                      'Finalized and posted'
-                    )}
-                  </td>
-                  {canGenerate ? (
-                    <td>
-                      {cycle.status === 'DRAFT' ? (
-                        <button
-                          className="table-action"
-                          disabled={!cycle.invoiceCount}
-                          onClick={() => setConfirmCycle(cycle)}
-                          type="button"
-                        >
-                          Review and finalize
-                        </button>
-                      ) : (
-                        'Posted'
-                      )}
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="billing-month-grid">
+          {cycles
+            .filter((cycle) => cycle.id !== activeCycle?.id)
+            .map((cycle) => (
+              <button
+                className="billing-month-card"
+                key={cycle.id}
+                onClick={() => {
+                  setPeriod(
+                    `${cycle.periodYear}-${String(cycle.periodMonth).padStart(2, '0')}`,
+                  );
+                  setStep(0);
+                  setQuery('');
+                }}
+                type="button"
+              >
+                <span
+                  className={`record-status ${cycle.status === 'FINALIZED' ? 'active' : ''}`}
+                >
+                  {cycle.status === 'FINALIZED' ? 'Posted' : 'Draft'}
+                </span>
+                <strong>
+                  {periodLabel(cycle.periodYear, cycle.periodMonth)}
+                </strong>
+                <span>
+                  {cycle.invoiceCount} invoices · {money(cycle.totalCentavos)}
+                </span>
+                <small>Open month →</small>
+              </button>
+            ))}
+          {!loading && !cycles.length ? (
+            <p className="empty-state">
+              No billing runs yet. Select a month above to begin.
+            </p>
+          ) : null}
         </div>
-        {!loading && !cycles.length ? (
-          <div className="empty-state">
-            No billing cycles have been generated.
-          </div>
-        ) : null}
       </section>
       <section aria-busy={loading} className="data-card table-card">
         <div className="card-heading">
@@ -273,70 +501,127 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
             <span>Invoice register</span>
             <h2>Invoices</h2>
           </div>
+          <button
+            onClick={() => setShowRegister((value) => !value)}
+            type="button"
+          >
+            {showRegister ? 'Hide register' : 'Open register'}
+          </button>
         </div>
-        <form
-          className="list-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void load(query);
-          }}
-        >
-          <label>
-            <span className="sr-only">Search invoices</span>
-            <input
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Invoice, subscriber, or service account number"
-              value={query}
-            />
-          </label>
-          <button type="submit">Search</button>
-        </form>
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Subscriber</th>
-                <th>Period</th>
-                <th>Due</th>
-                <th>Balance</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr key={invoice.id}>
-                  <td>
-                    <button
-                      className="record-link"
-                      onClick={() => void open(invoice)}
-                      type="button"
-                    >
-                      {invoice.invoiceNumber}
-                    </button>
-                  </td>
-                  <td>
-                    {invoice.subscriberName}
-                    <small>{invoice.serviceAccountNumber}</small>
-                  </td>
-                  <td>{invoice.billingPeriodLabel}</td>
-                  <td>{invoice.dueDate}</td>
-                  <td>{money(invoice.balanceCentavos)}</td>
-                  <td>
-                    <span
-                      className={`record-status ${invoice.status === 'PAID' ? 'active' : ''}`}
-                    >
-                      {invoice.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!loading && !invoices.length ? (
-          <div className="empty-state">No invoices match this search.</div>
-        ) : null}
+        {showRegister ? (
+          <>
+            <form
+              className="list-search"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void load(query, 1);
+              }}
+            >
+              <label>
+                <span className="sr-only">Search invoices</span>
+                <input
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Invoice, subscriber, or service account number"
+                  value={query}
+                />
+              </label>
+              <button type="submit">Search</button>
+            </form>
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Subscriber</th>
+                    <th>Period</th>
+                    <th>Due</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td>
+                        <button
+                          className="record-link"
+                          onClick={() => void open(invoice)}
+                          type="button"
+                        >
+                          {invoice.invoiceNumber}
+                        </button>
+                      </td>
+                      <td>
+                        {invoice.subscriberName}
+                        <small>{invoice.serviceAccountNumber}</small>
+                      </td>
+                      <td>{invoice.billingPeriodLabel}</td>
+                      <td>{invoice.dueDate}</td>
+                      <td>{money(invoice.balanceCentavos)}</td>
+                      <td>
+                        <span
+                          className={`record-status ${invoice.status === 'PAID' ? 'active' : ''}`}
+                        >
+                          {invoice.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!loading && !invoices.length ? (
+              <div className="empty-state">No invoices match this search.</div>
+            ) : null}
+            {invoiceTotal > 0 ? (
+              <div className="billing-register-pages">
+                <span>
+                  {Math.min((page - 1) * 50 + 1, invoiceTotal)}–
+                  {Math.min(page * 50, invoiceTotal)} of {invoiceTotal} invoices
+                </span>
+                <div>
+                  <button
+                    disabled={loading || page === 1}
+                    onClick={() => void load(query, page - 1)}
+                    type="button"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={loading || page * 50 >= invoiceTotal}
+                    onClick={() => void load(query, page + 1)}
+                    type="button"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="billing-invoice-preview">
+            {invoices.slice(0, 4).map((invoice) => (
+              <button
+                className="billing-invoice-card"
+                key={invoice.id}
+                onClick={() => void open(invoice)}
+                type="button"
+              >
+                <span>
+                  <strong>{invoice.subscriberName}</strong>
+                  <small>
+                    {invoice.invoiceNumber} · {invoice.billingPeriodLabel}
+                  </small>
+                </span>
+                <span>
+                  <strong>{money(invoice.balanceCentavos)}</strong>
+                  <small>{invoice.status}</small>
+                </span>
+              </button>
+            ))}
+            {!loading && !invoices.length ? <p>No invoices yet.</p> : null}
+          </div>
+        )}
       </section>
       {selected ? (
         <ModalDialog
@@ -346,6 +631,7 @@ export function BillingView({ canGenerate }: { canGenerate: boolean }) {
           <InvoicePanel
             invoice={selected}
             canGenerate={canGenerate}
+            onOpenReceipt={onOpenReceipt}
             onAdjust={() =>
               setInvoiceAction({ kind: 'adjustment', invoice: selected })
             }
@@ -480,12 +766,14 @@ function InvoicePanel({
   canGenerate,
   onAdjust,
   onClose,
+  onOpenReceipt,
   onVoid,
 }: {
   invoice: InvoiceDetailDto;
   canGenerate: boolean;
   onAdjust: () => void;
   onClose: () => void;
+  onOpenReceipt?: ((receiptNumber: string) => void) | undefined;
   onVoid: () => void;
 }) {
   return (
@@ -528,6 +816,10 @@ function InvoicePanel({
           <dt>Balance</dt>
           <dd>{money(invoice.balanceCentavos)}</dd>
         </div>
+        <div>
+          <dt>Original total</dt>
+          <dd>{money(invoice.totalCentavos)}</dd>
+        </div>
       </dl>
       <div className="detail-list">
         {invoice.items.map((item) => (
@@ -540,6 +832,31 @@ function InvoicePanel({
           <div className="amount-row" key={item.id}>
             <span>Adjustment: {item.reason}</span>
             <strong>{money(item.amountCentavos)}</strong>
+          </div>
+        ))}
+        {invoice.allocations?.map((allocation) => (
+          <div className="amount-row" key={allocation.id}>
+            <span>
+              {allocation.status === 'REVERSED'
+                ? 'Reversed payment'
+                : 'Payment'}{' '}
+              on {new Date(allocation.paymentDate).toLocaleDateString('en-PH')}
+              {allocation.receiptNumber ? ` · ${allocation.receiptNumber}` : ''}
+            </span>
+            <strong>
+              {allocation.status === 'REVERSED'
+                ? 'Reversed'
+                : `−${money(allocation.amountCentavos)}`}
+            </strong>
+            {allocation.receiptNumber && onOpenReceipt ? (
+              <button
+                className="table-action"
+                onClick={() => onOpenReceipt(allocation.receiptNumber!)}
+                type="button"
+              >
+                Open receipt
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

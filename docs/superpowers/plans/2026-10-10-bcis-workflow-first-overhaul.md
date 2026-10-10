@@ -139,11 +139,11 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `BillingViews.tsx`, `billing-routes.ts`, `billing.ts`, contracts/bridge, tests and manual.
 
-- [ ] Add server eligibility/exception summary only if existing API cannot produce it efficiently. Define as-of/period semantics precisely.
-- [ ] Build current-period run card and month cards. Implement Select month → Eligibility review → Draft generation → Draft review/finalize as distinct screens/states.
-- [ ] Show exception cards first and give invoice detail in a sheet. Preserve a register for reconciliation/print operations.
-- [ ] Prove double-click/retry cannot duplicate invoices; final posting stays transactional and immutable.
-- [ ] Test empty cycle, changed eligibility, interrupted load, role denial, linked invoice and receipt navigation.
+- [x] Add a read-only server eligibility/exception summary. Eligibility uses active services whose billing start date is on or before the selected month's last day; it is recalculated during draft generation.
+- [x] Build a selected-month run card and other-month cards. Select month → Eligibility review → Draft generation → Draft review/finalize are distinct states.
+- [x] Show exclusions before generation, invoice cards for quick reading, a paged month-scoped register for reconciliation, and invoice detail with lines, corrections, allocations, print, and linked receipts.
+- [x] Guard repeated generation clicks; retain the existing invoice uniqueness constraint. Finalization locks the cycle row and posts matching ledger debits transactionally, with immutable corrections.
+- [x] Cover empty draft, changed preview result, interrupted eligibility load, role denial, register paging, and linked invoice/receipt navigation in tests.
 
 **Done when:** A period can be reviewed and finalized from a compact, understandable flow with totals traceable to invoices.
 

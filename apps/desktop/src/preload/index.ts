@@ -37,6 +37,8 @@ const desktopApi: DesktopApi = Object.freeze({
   }),
   billing: Object.freeze({
     listCycles: () => ipcRenderer.invoke('billing:cycles:list'),
+    eligibility: (periodYear: number, periodMonth: number) =>
+      ipcRenderer.invoke('billing:cycles:eligibility', periodYear, periodMonth),
     generate: (periodYear: number, periodMonth: number) =>
       ipcRenderer.invoke('billing:cycles:generate', periodYear, periodMonth),
     finalize: (cycleId: string) =>
@@ -46,6 +48,7 @@ const desktopApi: DesktopApi = Object.freeze({
       page: number;
       pageSize: number;
       subscriberId?: string;
+      billingCycleId?: string;
     }) => ipcRenderer.invoke('billing:invoices:list', query),
     getInvoice: (id: string) => ipcRenderer.invoke('billing:invoices:get', id),
     addAdjustment: (id: string, amountCentavos: number, reason: string) =>

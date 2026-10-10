@@ -17,10 +17,12 @@ export function PaymentsView({
   canCreate,
   canVerify,
   canReverse,
+  initialReceiptNumber,
 }: {
   canCreate: boolean;
   canVerify: boolean;
   canReverse: boolean;
+  initialReceiptNumber?: string | null | undefined;
 }) {
   const [tab, setTab] = useState<'receive' | 'history' | 'gcash'>(() =>
     canCreate ? 'receive' : canVerify ? 'gcash' : 'history',
@@ -70,6 +72,17 @@ export function PaymentsView({
     }
   }
   useEffect(() => {
+    if (initialReceiptNumber) {
+      setTab('history');
+      setSearch(initialReceiptNumber);
+      void load(undefined, initialReceiptNumber).then((items) =>
+        setSelected(
+          items.find((item) => item.receiptNumber === initialReceiptNumber) ??
+            null,
+        ),
+      );
+      return;
+    }
     if (tab === 'history') void load();
     else if (tab === 'gcash') void load('PENDING_VERIFICATION');
   }, []);

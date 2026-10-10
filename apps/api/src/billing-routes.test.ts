@@ -20,6 +20,17 @@ const auth = {
 function service(overrides: Partial<BillingService> = {}) {
   return {
     listCycles: vi.fn(async () => []),
+    eligibility: vi.fn(async () => ({
+      periodYear: 2026,
+      periodMonth: 10,
+      eligibleServices: 4,
+      existingInvoices: 1,
+      remainingServices: 3,
+      estimatedNewCentavos: 450000,
+      inactiveServices: 2,
+      futureStartServices: 1,
+      cycleStatus: 'DRAFT' as const,
+    })),
     generateDrafts: vi.fn(async () => ({
       cycleId: 'cycle',
       created: 2,
@@ -45,6 +56,78 @@ afterEach(async () => {
 });
 
 describe('Task 4 billing API contract', () => {
+  it('previews one validated month with billing view permission', async () => {
+    const billing = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: auth,
+      billingService: billing,
+    });
+    applications.push(app);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/billing-cycles/eligibility?periodYear=2026&periodMonth=10',
+      headers: { authorization: 'Bearer token' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(billing.eligibility).toHaveBeenCalledWith({
+      periodYear: 2026,
+      periodMonth: 10,
+    });
+    expect(auth.requirePermission).toHaveBeenCalledWith(
+      'token',
+      'billing.view',
+    );
+    const invalid = await app.inject({
+      method: 'GET',
+      url: '/api/v1/billing-cycles/eligibility?periodYear=2026&periodMonth=13',
+      headers: { authorization: 'Bearer token' },
+    });
+    expect(invalid.statusCode).toBe(422);
+  });
+
+  it('denies the eligibility preview when billing view is absent', async () => {
+    const deniedAuth = {
+      requirePermission: vi.fn(async () => {
+        throw new Error('Forbidden');
+      }),
+    } as unknown as AuthService;
+    const billing = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: deniedAuth,
+      billingService: billing,
+    });
+    applications.push(app);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/billing-cycles/eligibility?periodYear=2026&periodMonth=10',
+      headers: { authorization: 'Bearer token' },
+    });
+    expect(response.statusCode).not.toBe(200);
+    expect(billing.eligibility).not.toHaveBeenCalled();
+  });
+
+  it('filters the invoice register by billing cycle', async () => {
+    const billing = service();
+    const app = await createApp({
+      checkReadiness: async () => undefined,
+      authService: auth,
+      billingService: billing,
+    });
+    applications.push(app);
+    const billingCycleId = '00000000-0000-4000-8000-000000000002';
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/invoices?billingCycleId=${billingCycleId}`,
+      headers: { authorization: 'Bearer token' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(billing.listInvoices).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCycleId }),
+    );
+  });
+
   it('normalizes invoice search and enforces billing view permission', async () => {
     const billing = service();
     const app = await createApp({

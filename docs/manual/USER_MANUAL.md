@@ -101,17 +101,13 @@ The rate copied to the service account is used by future billing. Finalized invo
 Perform this once per billing period after subscriber and service changes for that month are complete.
 
 1. Select **Billing**.
-2. Under **Generate draft cycle**, select the required **Billing month**.
-3. Select **Generate drafts**.
-4. Review the new row under **Monthly runs**:
-   - billing period;
-   - number of invoices;
-   - total amount; and
-   - `DRAFT` status.
-5. Review the invoice list and open individual invoice numbers when necessary.
+2. Choose the **Billing month** in the run card. Other months appear as cards below it.
+3. Select **Prepare billing**. Review eligible services, already invoiced services, expected new drafts and amount, and inactive or future-start exclusions. Eligibility uses active services whose billing start date is on or before the selected month's last day. It is a live preview; generation checks again when submitted.
+4. Select **Generate drafts**. The draft review shows the invoice count and total for the selected month. If a draft run already exists, select **Review draft run** directly.
+5. Select **Open register** to search and page through invoices for the selected month. Open an invoice to inspect its frozen lines, corrections, payment allocations, and remaining balance. When your role permits payment history, **Open receipt** takes you to the linked receipt.
 6. When the draft totals are correct and at least one invoice was generated, select **Review and finalize**.
 7. Review the invoice count and total in the confirmation dialog, then select **Confirm finalization**. If the cycle has no eligible services, it cannot be finalized.
-8. Confirm that the cycle becomes `FINALIZED` and that its invoices are posted to subscriber ledgers.
+8. Confirm that the run card becomes `FINALIZED` and that its invoices are posted to subscriber ledgers. The run card shows the posted count and total.
 
 Generating the same month again safely skips service-period invoices that already exist. Do not change data merely to bypass the duplicate-billing protection. A finalized invoice should be corrected only through an authorized adjustment or void with a recorded reason.
 

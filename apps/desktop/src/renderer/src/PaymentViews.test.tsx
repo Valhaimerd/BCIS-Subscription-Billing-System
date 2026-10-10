@@ -30,6 +30,7 @@ function renderPayments(
     canReverse?: boolean;
     canVerify?: boolean;
   } = {},
+  initialReceiptNumber?: string,
 ) {
   const create = vi.fn(async () => ({ receiptNumber: 'RCT-0001' }));
   const preview = vi.fn(async () => ({
@@ -85,6 +86,7 @@ function renderPayments(
       canCreate={permissions.canCreate ?? true}
       canVerify={permissions.canVerify ?? false}
       canReverse={permissions.canReverse ?? false}
+      initialReceiptNumber={initialReceiptNumber}
     />,
   );
   return { create, preview, submitGcash, decideGcash, reverse, proof };
@@ -111,6 +113,39 @@ afterEach(() => {
 });
 
 describe('PaymentsView', () => {
+  it('opens a linked receipt directly in payment history', async () => {
+    renderPayments(
+      [
+        {
+          id: 'payment-linked',
+          subscriberId: subscriber.id,
+          subscriberName: subscriber.fullName,
+          subscriberAccountNumber: subscriber.accountNumber,
+          amountCentavos: 10000,
+          allocatedCentavos: 10000,
+          creditCentavos: 0,
+          method: 'CASH',
+          status: 'POSTED',
+          referenceNumber: null,
+          senderDetails: null,
+          notes: null,
+          paymentDate: '2026-10-02T00:00:00Z',
+          receiptNumber: 'RCT-LINKED',
+          receiptVoidedAt: null,
+          proofId: null,
+          proofFilename: null,
+          rejectedReason: null,
+          reversedReason: null,
+        },
+      ],
+      { canCreate: false },
+      'RCT-LINKED',
+    );
+    expect(
+      await screen.findByRole('dialog', { name: 'Receipt detail' }),
+    ).toHaveTextContent('RCT-LINKED');
+  });
+
   it('moves through payment workspaces with the arrow keys', async () => {
     const user = userEvent.setup();
     renderPayments([], { canVerify: true });

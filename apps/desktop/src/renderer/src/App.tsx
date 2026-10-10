@@ -296,6 +296,7 @@ function AuthenticatedShell({
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(readSidebarCollapsed);
   const [activeView, setActiveView] = useState<AppViewId>('Home');
+  const [receiptToOpen, setReceiptToOpen] = useState<string | null>(null);
   const [initialSubscriberId, setInitialSubscriberId] = useState<string>();
   const sidebarRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -555,9 +556,18 @@ function AuthenticatedShell({
               canGenerate={session.user.permissions.includes(
                 'billing.generate',
               )}
+              onOpenReceipt={
+                session.user.permissions.includes('payment.view')
+                  ? (receiptNumber) => {
+                      setReceiptToOpen(receiptNumber);
+                      setActiveView('Payments');
+                    }
+                  : undefined
+              }
             />
           ) : activeView === 'Payments' ? (
             <PaymentsView
+              initialReceiptNumber={receiptToOpen}
               canCreate={session.user.permissions.includes('payment.create')}
               canReverse={session.user.permissions.includes('payment.reverse')}
               canVerify={session.user.permissions.includes(

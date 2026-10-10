@@ -82,18 +82,21 @@ Subscriber activity accepts `page` and `pageSize` (1–100) and merges status, s
 
 All endpoints require a Bearer session. Read operations require `billing.view`; cycle generation, finalization, adjustments, and voids require `billing.generate`.
 
-| Method | Path                                  | Purpose                                                        |
-| ------ | ------------------------------------- | -------------------------------------------------------------- |
-| `GET`  | `/api/v1/billing-cycles`              | List monthly runs with invoice counts and exact centavo totals |
-| `POST` | `/api/v1/billing-cycles`              | Idempotently generate eligible draft invoices for a year/month |
-| `POST` | `/api/v1/billing-cycles/:id/finalize` | Atomically finalize drafts and post matching ledger debits     |
-| `GET`  | `/api/v1/invoices`                    | Search and paginate invoices                                   |
-| `GET`  | `/api/v1/invoices/:id`                | Return a frozen invoice with lines and adjustments             |
-| `POST` | `/api/v1/invoices/:id/adjustments`    | Append an audited debit or credit correction                   |
-| `POST` | `/api/v1/invoices/:id/void`           | Void a finalized invoice with a reason and ledger credit       |
-| `GET`  | `/api/v1/subscribers/:id/ledger`      | Return chronological entries and deterministic running balance |
+| Method | Path                                  | Purpose                                                                                                    |
+| ------ | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `GET`  | `/api/v1/billing-cycles`              | List monthly runs with invoice counts and exact centavo totals                                             |
+| `GET`  | `/api/v1/billing-cycles/eligibility`  | Preview eligible, already invoiced, inactive, and future-start services for `periodYear` and `periodMonth` |
+| `POST` | `/api/v1/billing-cycles`              | Idempotently generate eligible draft invoices for a year/month                                             |
+| `POST` | `/api/v1/billing-cycles/:id/finalize` | Atomically finalize drafts and post matching ledger debits                                                 |
+| `GET`  | `/api/v1/invoices`                    | Search and paginate invoices                                                                               |
+| `GET`  | `/api/v1/invoices/:id`                | Return a frozen invoice with lines, adjustments, and payment allocations                                   |
+| `POST` | `/api/v1/invoices/:id/adjustments`    | Append an audited debit or credit correction                                                               |
+| `POST` | `/api/v1/invoices/:id/void`           | Void a finalized invoice with a reason and ledger credit                                                   |
+| `GET`  | `/api/v1/subscribers/:id/ledger`      | Return chronological entries and deterministic running balance                                             |
 
-Invoice search accepts `q`, `page`, `pageSize`, optional `status`, and optional `subscriberId`. `q` covers invoice number, subscriber number/name, and service account number. Ledger queries accept optional ISO `from` and `to` dates; a filtered statement retains the correct opening balance in each returned running balance. No general update or delete route exists for posted invoice lines or ledger entries.
+Invoice search accepts `q`, `page`, `pageSize`, optional `status`, optional `subscriberId`, and optional `billingCycleId`. `q` covers invoice number, subscriber number/name, and service account number. Ledger queries accept optional ISO `from` and `to` dates; a filtered statement retains the correct opening balance in each returned running balance. No general update or delete route exists for posted invoice lines or ledger entries.
+
+Eligibility counts active service accounts whose billing start date is on or before the selected month's last day. `remainingServices` and `estimatedNewCentavos` exclude services already invoiced in that cycle; inactive and future-start services are reported separately. It is a read-only snapshot, and draft generation checks eligibility again inside its transaction. Finalization locks the cycle row, posts matching ledger debits in one transaction, and rejects an empty draft run.
 
 ## Payments, receipts, and GCash verification
 

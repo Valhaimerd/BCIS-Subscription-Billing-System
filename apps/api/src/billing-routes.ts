@@ -41,6 +41,30 @@ export async function registerBillingRoutes(
     },
   );
 
+  app.get<{ Querystring: Record<string, string | undefined> }>(
+    '/api/v1/billing-cycles/eligibility',
+    {
+      schema: {
+        ...protectedRoute,
+        tags: ['Billing'],
+        summary: 'Preview eligible services for a billing month',
+      },
+    },
+    async (request) => {
+      await authorize(request.headers.authorization, 'billing.view');
+      return {
+        success: true,
+        message: 'Billing eligibility loaded.',
+        data: await billing.eligibility(
+          billingPeriodSchema.parse({
+            periodYear: Number(request.query.periodYear),
+            periodMonth: Number(request.query.periodMonth),
+          }),
+        ),
+      };
+    },
+  );
+
   app.post(
     '/api/v1/billing-cycles',
     {

@@ -333,6 +333,7 @@ export const billingPeriodSchema = z.object({
 export const invoiceListQuerySchema = paginationSchema.extend({
   status: invoiceStatusSchema.optional(),
   subscriberId: z.uuid().optional(),
+  billingCycleId: z.uuid().optional(),
 });
 export const ledgerQuerySchema = z.object({
   from: z.iso.date().optional(),
@@ -358,6 +359,17 @@ export interface BillingCycleDto {
   invoiceCount: number;
   totalCentavos: number;
   finalizedAt: string | null;
+}
+export interface BillingEligibilityDto {
+  periodYear: number;
+  periodMonth: number;
+  eligibleServices: number;
+  existingInvoices: number;
+  remainingServices: number;
+  estimatedNewCentavos: number;
+  inactiveServices: number;
+  futureStartServices: number;
+  cycleStatus: 'NOT_STARTED' | 'DRAFT' | 'FINALIZED';
 }
 export interface InvoiceSummaryDto {
   id: string;
@@ -393,6 +405,13 @@ export interface InvoiceDetailDto extends InvoiceSummaryDto {
   voidReason: string | null;
   items: InvoiceItemDto[];
   adjustments: AdjustmentDto[];
+  allocations: {
+    id: string;
+    amountCentavos: number;
+    paymentDate: string;
+    receiptNumber: string | null;
+    status: z.infer<typeof paymentStatusSchema>;
+  }[];
 }
 export interface LedgerEntryDto {
   id: number;

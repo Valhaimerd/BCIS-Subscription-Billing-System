@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,17 @@ function renderBilling(canGenerate = true) {
   window.bcis = {
     billing: {
       listCycles: vi.fn(async () => [cycle]),
+      eligibility: vi.fn(async () => ({
+        periodYear: 2026,
+        periodMonth: 10,
+        eligibleServices: 3,
+        existingInvoices: 3,
+        remainingServices: 0,
+        estimatedNewCentavos: 0,
+        inactiveServices: 1,
+        futureStartServices: 0,
+        cycleStatus: 'DRAFT' as const,
+      })),
       listInvoices: vi.fn(async () => ({
         items: [],
         page: 1,
@@ -62,15 +73,35 @@ const invoice = {
     },
   ],
   adjustments: [],
+  allocations: [
+    {
+      id: 'allocation-1',
+      amountCentavos: 10000,
+      paymentDate: '2026-10-02T00:00:00Z',
+      receiptNumber: 'RCPT-001',
+      status: 'POSTED' as const,
+    },
+  ],
 };
 
-function renderInvoiceActions() {
+function renderInvoiceActions(onOpenReceipt?: (receiptNumber: string) => void) {
   const addAdjustment = vi.fn(async () => undefined);
   const voidInvoice = vi.fn(async () => undefined);
   const getInvoice = vi.fn(async () => invoice);
   window.bcis = {
     billing: {
       listCycles: vi.fn(async () => [cycle]),
+      eligibility: vi.fn(async () => ({
+        periodYear: 2026,
+        periodMonth: 10,
+        eligibleServices: 3,
+        existingInvoices: 3,
+        remainingServices: 0,
+        estimatedNewCentavos: 0,
+        inactiveServices: 0,
+        futureStartServices: 0,
+        cycleStatus: 'DRAFT' as const,
+      })),
       listInvoices: vi.fn(async () => ({
         items: [invoice],
         page: 1,
@@ -82,7 +113,7 @@ function renderInvoiceActions() {
       voidInvoice,
     },
   } as unknown as NonNullable<typeof window.bcis>;
-  render(<BillingView canGenerate />);
+  render(<BillingView canGenerate onOpenReceipt={onOpenReceipt} />);
   return { addAdjustment, voidInvoice };
 }
 
@@ -92,8 +123,154 @@ afterEach(() => {
 });
 
 describe('BillingView', () => {
+  it('keeps the register scoped to the selected run and pages through its invoices', async () => {
+    const user = userEvent.setup();
+    const listInvoices = vi.fn(async ({ page }: { page: number }) => ({
+      items:
+        page === 1
+          ? [invoice]
+          : [{ ...invoice, id: 'invoice-2', invoiceNumber: 'INV-1002' }],
+      page,
+      pageSize: 50,
+      total: 65,
+    }));
+    window.bcis = {
+      billing: {
+        listCycles: vi.fn(async () => [cycle]),
+        eligibility: vi.fn(async () => ({
+          periodYear: 2026,
+          periodMonth: 10,
+          eligibleServices: 3,
+          existingInvoices: 3,
+          remainingServices: 0,
+          estimatedNewCentavos: 0,
+          inactiveServices: 0,
+          futureStartServices: 0,
+          cycleStatus: 'DRAFT' as const,
+        })),
+        listInvoices,
+      },
+    } as unknown as NonNullable<typeof window.bcis>;
+    render(<BillingView canGenerate />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Open register' }),
+    );
+    expect(await screen.findByText('1–50 of 65 invoices')).toBeVisible();
+    expect(listInvoices).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCycleId: 'cycle-draft', page: 1 }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('51–65 of 65 invoices')).toBeVisible();
+    expect(listInvoices).toHaveBeenCalledWith(
+      expect.objectContaining({ billingCycleId: 'cycle-draft', page: 2 }),
+    );
+  });
+
+  it('reviews eligibility before generating and prevents a repeat click while pending', async () => {
+    const user = userEvent.setup();
+    let resolveGenerate!: (value: { created: number; skipped: number }) => void;
+    const generate = vi.fn(
+      () =>
+        new Promise<{ created: number; skipped: number }>((resolve) => {
+          resolveGenerate = resolve;
+        }),
+    );
+    window.bcis = {
+      billing: {
+        listCycles: vi.fn(async () => []),
+        listInvoices: vi.fn(async () => ({
+          items: [],
+          page: 1,
+          pageSize: 50,
+          total: 0,
+        })),
+        eligibility: vi.fn(async () => ({
+          periodYear: 2026,
+          periodMonth: 10,
+          eligibleServices: 4,
+          existingInvoices: 1,
+          remainingServices: 3,
+          estimatedNewCentavos: 450000,
+          inactiveServices: 2,
+          futureStartServices: 1,
+          cycleStatus: 'NOT_STARTED' as const,
+        })),
+        generate,
+      },
+    } as unknown as NonNullable<typeof window.bcis>;
+    render(<BillingView canGenerate />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Prepare billing' }),
+    );
+    expect(await screen.findByText('New drafts expected')).toBeVisible();
+    expect(screen.getByText(/2 inactive services/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Generate drafts' }));
+    expect(screen.getByRole('button', { name: 'Generating…' })).toBeDisabled();
+    expect(generate).toHaveBeenCalledTimes(1);
+    resolveGenerate({ created: 2, skipped: 1 });
+    expect(
+      await screen.findByText('2 draft invoices created; 1 already existed.'),
+    ).toBeVisible();
+  });
+
+  it('ignores an interrupted eligibility response after the month changes', async () => {
+    let resolveOld!: (value: unknown) => void;
+    const eligibility = vi.fn((year: number, month: number) =>
+      month === 10
+        ? new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+        : Promise.resolve({
+            periodYear: year,
+            periodMonth: month,
+            eligibleServices: 2,
+            existingInvoices: 0,
+            remainingServices: 2,
+            estimatedNewCentavos: 20000,
+            inactiveServices: 0,
+            futureStartServices: 0,
+            cycleStatus: 'NOT_STARTED',
+          }),
+    );
+    window.bcis = {
+      billing: {
+        listCycles: vi.fn(async () => []),
+        eligibility,
+      },
+    } as unknown as NonNullable<typeof window.bcis>;
+    render(<BillingView canGenerate />);
+    fireEvent.change(screen.getByLabelText('Billing month'), {
+      target: { value: '2026-11' },
+    });
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Prepare billing' }));
+    expect(await screen.findByText('New drafts expected')).toBeVisible();
+    expect(
+      screen.getAllByText('2', {
+        selector: '.billing-eligibility-grid strong',
+      }),
+    ).toHaveLength(2);
+    resolveOld({
+      periodYear: 2026,
+      periodMonth: 10,
+      eligibleServices: 99,
+      existingInvoices: 0,
+      remainingServices: 99,
+      estimatedNewCentavos: 0,
+      inactiveServices: 0,
+      futureStartServices: 0,
+      cycleStatus: 'NOT_STARTED',
+    });
+    expect(screen.queryByText('99')).not.toBeInTheDocument();
+  });
+
   it('shows the draft review context before the explicit finalize action', async () => {
+    const user = userEvent.setup();
     renderBilling();
+    await user.click(
+      await screen.findByRole('button', { name: 'Review draft run' }),
+    );
     expect(
       await screen.findByText('3 draft invoices ready for review'),
     ).toBeVisible();
@@ -112,7 +289,10 @@ describe('BillingView', () => {
       new Error('Cycle contains an ineligible invoice.'),
     );
     await user.click(
-      await screen.findByRole('button', { name: 'Review and finalize' }),
+      await screen.findByRole('button', { name: 'Review draft run' }),
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'Review and finalize' }),
     );
     expect(
       screen.getByRole('dialog', { name: /Finalize billing cycle/ }),
@@ -137,6 +317,17 @@ describe('BillingView', () => {
         listCycles: vi.fn(async () => [
           { ...cycle, invoiceCount: 0, totalCentavos: 0 },
         ]),
+        eligibility: vi.fn(async () => ({
+          periodYear: 2026,
+          periodMonth: 10,
+          eligibleServices: 0,
+          existingInvoices: 0,
+          remainingServices: 0,
+          estimatedNewCentavos: 0,
+          inactiveServices: 0,
+          futureStartServices: 0,
+          cycleStatus: 'DRAFT' as const,
+        })),
         listInvoices: vi.fn(async () => ({
           items: [],
           page: 1,
@@ -147,7 +338,11 @@ describe('BillingView', () => {
         finalize: vi.fn(),
       },
     } as unknown as NonNullable<typeof window.bcis>;
+    const user = userEvent.setup();
     render(<BillingView canGenerate />);
+    await user.click(
+      await screen.findByRole('button', { name: 'Review draft run' }),
+    );
     expect(
       await screen.findByText(
         'No eligible services produced invoices for this period.',
@@ -160,9 +355,7 @@ describe('BillingView', () => {
 
   it('hides cycle generation and finalization actions for read-only users', async () => {
     renderBilling(false);
-    expect(
-      await screen.findByText('3 draft invoices ready for review'),
-    ).toBeVisible();
+    expect(await screen.findByText('October 2026')).toBeVisible();
     expect(
       screen.queryByRole('button', { name: 'Generate drafts' }),
     ).not.toBeInTheDocument();
@@ -174,6 +367,9 @@ describe('BillingView', () => {
   it('opens an adjustment dialog from the invoice and keeps the ledger unchanged on cancel', async () => {
     const user = userEvent.setup();
     const { addAdjustment } = renderInvoiceActions();
+    await user.click(
+      await screen.findByRole('button', { name: 'Open register' }),
+    );
     await user.click(await screen.findByRole('button', { name: 'INV-1001' }));
     await user.click(await screen.findByRole('button', { name: 'Adjustment' }));
     expect(
@@ -196,6 +392,9 @@ describe('BillingView', () => {
   it('requires an explicit reason before voiding an invoice', async () => {
     const user = userEvent.setup();
     const { voidInvoice } = renderInvoiceActions();
+    await user.click(
+      await screen.findByRole('button', { name: 'Open register' }),
+    );
     await user.click(await screen.findByRole('button', { name: 'INV-1001' }));
     await user.click(await screen.findByRole('button', { name: 'Void' }));
     expect(
@@ -208,5 +407,19 @@ describe('BillingView', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Void invoice' }));
     expect(voidInvoice).toHaveBeenCalledWith('invoice-1', 'Duplicate charge');
+  });
+
+  it('opens a linked receipt from invoice detail when payment history is permitted', async () => {
+    const user = userEvent.setup();
+    const onOpenReceipt = vi.fn();
+    renderInvoiceActions(onOpenReceipt);
+    await user.click(
+      await screen.findByRole('button', { name: 'Open register' }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'INV-1001' }));
+    await user.click(
+      await screen.findByRole('button', { name: 'Open receipt' }),
+    );
+    expect(onOpenReceipt).toHaveBeenCalledWith('RCPT-001');
   });
 });
