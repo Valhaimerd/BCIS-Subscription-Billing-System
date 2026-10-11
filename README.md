@@ -13,7 +13,7 @@ Electron desktop clients -> Fastify LAN API -> PostgreSQL
 
 The renderer has no direct Node.js or database access. Privileged desktop operations are exposed through a narrow typed preload API.
 
-See the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md), [manuals](docs/manual/README.md), [acceptance-test report](docs/ACCEPTANCE_TEST_REPORT.md), and focused [Task 1](docs/TASK_01_EVIDENCE.md) through [Task 10](docs/TASK_10_EVIDENCE.md) evidence.
+See the [technical documentation](docs/TECHNICAL_DOCUMENTATION.md), [manuals](docs/manual/README.md), [extended video run-through](docs/VIDEO%20RUN%20THROUGH.md) ([PDF](output/pdf/BCIS-Video-Run-Through.pdf)), [acceptance-test report](docs/ACCEPTANCE_TEST_REPORT.md), and focused [Task 1](docs/TASK_01_EVIDENCE.md) through [Task 10](docs/TASK_10_EVIDENCE.md) evidence.
 
 ## Requirements
 

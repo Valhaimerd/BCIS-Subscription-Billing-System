@@ -138,6 +138,8 @@ const desktopApi: DesktopApi = Object.freeze({
     listBackups: (page: number, pageSize: number) =>
       ipcRenderer.invoke('operations:backups:list', page, pageSize),
     createBackup: () => ipcRenderer.invoke('operations:backups:create'),
+    previewRestore: (id: string) =>
+      ipcRenderer.invoke('operations:backups:restore-preview', id),
     restoreBackup: (id: string, confirmation: string) =>
       ipcRenderer.invoke('operations:backups:restore', id, confirmation),
   }),

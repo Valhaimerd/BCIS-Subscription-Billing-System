@@ -133,7 +133,11 @@ export function DashboardView({
 
   const setDate = (key: 'from' | 'to', value: string) => {
     setActiveDetail(null);
-    setPeriod((current) => ({ ...current, [key]: value }));
+    setPeriod((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === 'to' ? { asOf: value } : {}),
+    }));
   };
 
   return (
@@ -275,6 +279,38 @@ export function DashboardView({
                   ) : null}
                 </section>
               ) : null}
+              <section
+                className="dashboard-breakdown"
+                aria-label="Dashboard breakdowns"
+              >
+                <RingChart
+                  title="How customers paid"
+                  basis={`${dashboard.from} to ${dashboard.to} · payment date`}
+                  chartLabel="Payment methods by amount"
+                  centerLabel="collected"
+                  empty="No posted payments in this period."
+                  segments={dashboard.paymentMethods.map((item) => ({
+                    label: paymentMethodLabels[item.method] ?? item.method,
+                    detail: `${item.count} ${item.count === 1 ? 'payment' : 'payments'}`,
+                    value: item.amountCentavos,
+                    color: paymentMethodColors[item.method] ?? '#64748b',
+                  }))}
+                />
+                <RingChart
+                  title="Where balances sit"
+                  basis={`As of ${dashboard.asOf}`}
+                  chartLabel="Receivables by invoice age"
+                  centerLabel="outstanding"
+                  empty="No outstanding balance on this date."
+                  segments={Object.entries(dashboard.aging).map(
+                    ([bucket, value]) => ({
+                      label: agingLabels[bucket] ?? bucket,
+                      value,
+                      color: agingColors[bucket] ?? '#64748b',
+                    }),
+                  )}
+                />
+              </section>
               <TrendChart dashboard={dashboard} />
             </>
           ) : null}
@@ -484,6 +520,124 @@ export function DashboardView({
   );
 }
 
+const paymentMethodLabels: Record<string, string> = {
+  CASH: 'Cash',
+  GCASH: 'GCash',
+  BANK_TRANSFER: 'Bank transfer',
+  CHEQUE: 'Cheque',
+  OTHER: 'Other',
+};
+const paymentMethodColors: Record<string, string> = {
+  CASH: '#4b8b63',
+  GCASH: '#258c84',
+  BANK_TRANSFER: '#8071ad',
+  CHEQUE: '#d58a28',
+  OTHER: '#64748b',
+};
+const agingLabels: Record<string, string> = {
+  CURRENT: 'Current',
+  '1_30': '1–30 days',
+  '31_60': '31–60 days',
+  '61_90': '61–90 days',
+  '90_PLUS': '90+ days',
+};
+const agingColors: Record<string, string> = {
+  CURRENT: '#568d6a',
+  '1_30': '#33938b',
+  '31_60': '#e5a341',
+  '61_90': '#df754e',
+  '90_PLUS': '#bb5575',
+};
+
+type RingSegment = {
+  label: string;
+  detail?: string;
+  value: number;
+  color: string;
+};
+
+function RingChart({
+  title,
+  basis,
+  chartLabel,
+  centerLabel,
+  empty,
+  segments,
+}: {
+  title: string;
+  basis: string;
+  chartLabel: string;
+  centerLabel: string;
+  empty: string;
+  segments: RingSegment[];
+}) {
+  const visible = segments.filter((segment) => segment.value > 0);
+  const total = visible.reduce((sum, segment) => sum + segment.value, 0);
+  const circumference = 2 * Math.PI * 70;
+  let offset = 0;
+
+  return (
+    <section className="data-card dashboard-ring-card">
+      <div className="ring-card-heading">
+        <h2>{title}</h2>
+        <span>{basis}</span>
+      </div>
+      <div className="ring-card-body">
+        <svg
+          aria-label={chartLabel}
+          className="ring-chart"
+          role="img"
+          viewBox="0 0 200 200"
+        >
+          <circle className="ring-track" cx="100" cy="100" r="70" />
+          {visible.map((segment) => {
+            const start = offset;
+            offset += segment.value / total;
+            return (
+              <circle
+                key={segment.label}
+                className="ring-segment"
+                cx="100"
+                cy="100"
+                r="70"
+                stroke={segment.color}
+                strokeDasharray={`${(segment.value / total) * circumference} ${circumference}`}
+                strokeDashoffset={-start * circumference}
+                transform="rotate(-90 100 100)"
+              />
+            );
+          })}
+          <text className="ring-amount" textAnchor="middle" x="100" y="99">
+            {money(total)}
+          </text>
+          <text className="ring-caption" textAnchor="middle" x="100" y="119">
+            {centerLabel}
+          </text>
+        </svg>
+        {visible.length ? (
+          <ul className="ring-legend">
+            {visible.map((segment) => (
+              <li key={segment.label}>
+                <span
+                  className="ring-key"
+                  style={{ backgroundColor: segment.color }}
+                />
+                <span className="ring-legend-name">
+                  {segment.label}
+                  {segment.detail ? ` · ${segment.detail}` : ''}
+                </span>
+                <strong>{money(segment.value)}</strong>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="ring-empty">{empty}</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function TrendChart({ dashboard }: { dashboard: DashboardDto }) {
   const points = dashboard.monthlyTrend;
   const chart = useMemo(() => {
@@ -495,16 +649,16 @@ function TrendChart({ dashboard }: { dashboard: DashboardDto }) {
       ]),
     );
     const width = 720;
-    const height = 250;
+    const height = 270;
     const padX = 54;
-    const padY = 22;
+    const padY = 40;
     const x = (index: number) =>
       padX +
       (points.length < 2
         ? (width - padX * 2) / 2
         : (index * (width - padX * 2)) / (points.length - 1));
     const y = (value: number) =>
-      height - padY - (Math.max(0, value) / max) * (height - padY * 2);
+      height - padY - (Math.max(0, value) / max) * (height - padY - 22);
     const pathFor = (key: 'billedCentavos' | 'collectedCentavos') =>
       points
         .map(
@@ -550,52 +704,90 @@ function TrendChart({ dashboard }: { dashboard: DashboardDto }) {
               Collected · payment date
             </span>
           </div>
-          <svg
-            aria-hidden="true"
-            className="trend-chart"
-            viewBox={`0 0 ${chart.width} ${chart.height}`}
-            role="presentation"
-          >
-            {[0, 1, 2, 3].map((line) => {
-              const y = 22 + line * 68;
-              const value = (chart.max * (3 - line)) / 3;
-              return (
-                <g key={line}>
-                  <text className="trend-axis-label" x="2" y={y + 4}>
-                    {axisMoney(value)}
-                  </text>
-                  <line
-                    className="trend-gridline"
-                    x1="54"
-                    x2="710"
-                    y1={y}
-                    y2={y}
+          {points.length === 1 ? (
+            <div
+              aria-label="Billing versus collection bars"
+              className="single-period-chart"
+              role="img"
+            >
+              <h3>{points[0]!.period}</h3>
+              {(
+                [
+                  ['Billed', points[0]!.billedCentavos, 'billed'],
+                  ['Collected', points[0]!.collectedCentavos, 'collected'],
+                ] as const
+              ).map(([label, value, tone]) => (
+                <div className="single-period-row" key={label}>
+                  <span>{label}</span>
+                  <div className="single-period-track">
+                    <i
+                      className={`single-period-fill ${tone}`}
+                      style={{ width: `${(value / chart.max) * 100}%` }}
+                    />
+                  </div>
+                  <strong>{money(value)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <svg
+              aria-label="Monthly billing versus collection trend"
+              className="trend-chart"
+              viewBox={`0 0 ${chart.width} ${chart.height}`}
+              role="img"
+            >
+              {[0, 1, 2, 3].map((line) => {
+                const y = 22 + line * (208 / 3);
+                const value = (chart.max * (3 - line)) / 3;
+                return (
+                  <g key={line}>
+                    <text className="trend-axis-label" x="2" y={y + 4}>
+                      {axisMoney(value)}
+                    </text>
+                    <line
+                      className="trend-gridline"
+                      x1="54"
+                      x2="710"
+                      y1={y}
+                      y2={y}
+                    />
+                  </g>
+                );
+              })}
+              <path className="trend-line trend-line-billed" d={chart.billed} />
+              <path
+                className="trend-line trend-line-collected"
+                d={chart.collected}
+              />
+              {chart.markers.map((marker, index) => (
+                <g key={marker.period}>
+                  <circle
+                    className="trend-point trend-point-billed"
+                    cx={marker.x}
+                    cy={marker.billedY}
+                    r="4"
                   />
+                  <circle
+                    className="trend-point trend-point-collected"
+                    cx={marker.x}
+                    cy={marker.collectedY}
+                    r="4"
+                  />
+                  {(index % Math.ceil(points.length / 6) === 0 ||
+                    index === points.length - 1) && (
+                    <text
+                      className="trend-axis-label trend-period-label"
+                      textAnchor="middle"
+                      x={marker.x}
+                      y="258"
+                    >
+                      {marker.period}
+                    </text>
+                  )}
                 </g>
-              );
-            })}
-            <path className="trend-line trend-line-billed" d={chart.billed} />
-            <path
-              className="trend-line trend-line-collected"
-              d={chart.collected}
-            />
-            {chart.markers.map((marker) => (
-              <g key={marker.period}>
-                <circle
-                  className="trend-point trend-point-billed"
-                  cx={marker.x}
-                  cy={marker.billedY}
-                  r="4"
-                />
-                <circle
-                  className="trend-point trend-point-collected"
-                  cx={marker.x}
-                  cy={marker.collectedY}
-                  r="4"
-                />
-              </g>
-            ))}
-          </svg>
+              ))}
+            </svg>
+          )}
           <details className="trend-data">
             <summary>View monthly figures</summary>
             <div className="table-scroll">

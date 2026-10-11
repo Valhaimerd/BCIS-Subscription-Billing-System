@@ -4,6 +4,7 @@ import type {
   BackupManifestDto,
   OperationsReadinessDto,
   Paginated,
+  RestorePreviewDto,
 } from '@bcis/contracts';
 import {
   applicationSettings,
@@ -215,6 +216,60 @@ export class OperationService {
     if (this.restoring)
       throw new OperationError(409, 'A restore is currently in progress.');
     return this.createBackup(actorUserId, 'BACKUP');
+  }
+
+  async previewRestore(id: string): Promise<RestorePreviewDto> {
+    if (this.restoring)
+      throw new OperationError(409, 'A restore is already in progress.');
+    const [source] = await this.db
+      .select()
+      .from(backupHistory)
+      .where(eq(backupHistory.id, id))
+      .limit(1);
+    if (
+      !source ||
+      source.status !== 'SUCCEEDED' ||
+      source.operation === 'RESTORE'
+    )
+      throw new OperationError(404, 'Restorable backup not found.');
+
+    let manifest: BackupManifestDto;
+    try {
+      manifest = await this.readAndVerifyManifest(source.backupName);
+    } catch (error) {
+      if (error instanceof OperationError) throw error;
+      throw new OperationError(
+        409,
+        'Backup files are unavailable or failed verification.',
+        { cause: error },
+      );
+    }
+    const currentSchemaVersion = await this.schemaVersion();
+    if (
+      !isManifestCompatible(
+        manifest,
+        this.config.applicationVersion,
+        currentSchemaVersion,
+      )
+    )
+      throw new OperationError(
+        409,
+        'The backup version is not compatible with this server.',
+      );
+
+    return {
+      backupId: source.id,
+      backupName: source.backupName,
+      createdAt: manifest.createdAt,
+      verifiedAt: new Date().toISOString(),
+      applicationVersion: manifest.applicationVersion,
+      schemaVersion: manifest.schemaVersion,
+      databaseSizeBytes: manifest.database.sizeBytes,
+      attachmentCount: manifest.attachments.length,
+      rowCounts: manifest.rowCounts,
+      currentRowCounts: await this.rowCounts(),
+      safetyBackupWillBeCreated: true,
+    };
   }
 
   async restore(id: string, confirmation: string, actorUserId: string) {

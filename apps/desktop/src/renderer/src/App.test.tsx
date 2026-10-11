@@ -231,6 +231,9 @@ function renderApp(current: DesktopSession | null = ownerSession) {
         total: 0,
       })),
       createBackup: vi.fn(),
+      previewRestore: vi.fn(async () => {
+        throw new Error('Restore preview is not used in this test.');
+      }),
       restoreBackup: vi.fn(),
     },
   };
@@ -605,7 +608,7 @@ describe('authenticated desktop shell', () => {
       await screen.findByRole('button', { name: 'Receivables' }),
     );
     expect(
-      await screen.findByRole('heading', { name: 'Accounts receivable' }),
+      await screen.findByRole('heading', { name: 'Follow-up desk' }),
     ).toBeVisible();
     expect(window.bcis?.receivables.summary).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: /1–30/ }));
@@ -629,7 +632,7 @@ describe('authenticated desktop shell', () => {
     expect(window.bcis?.reports.dashboard).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Reports' }));
     await user.click(
-      await screen.findByRole('button', { name: 'Preview report' }),
+      await screen.findByRole('button', { name: 'Preview answer' }),
     );
     expect(
       await screen.findByRole('heading', {
@@ -650,8 +653,22 @@ describe('authenticated desktop shell', () => {
       await screen.findByRole('button', { name: 'Backup & recovery' }),
     );
     expect(
-      await screen.findByRole('heading', { name: 'Backup and recovery' }),
+      await screen.findByRole('heading', { name: 'Backup register' }),
     ).toBeVisible();
     expect(window.bcis?.operations.readiness).toHaveBeenCalled();
+
+    cleanup();
+    renderApp({
+      ...ownerSession,
+      user: {
+        ...ownerSession.user,
+        roles: ['CASHIER'],
+        permissions: ['payment.view', 'payment.create'],
+      },
+    });
+    expect(await screen.findByRole('heading', { name: 'Today' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Backup & recovery' }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -881,6 +881,21 @@ export interface BackupHistoryDto {
   manifest: BackupManifestDto | null;
 }
 
+export const restorePreviewDtoSchema = z.object({
+  backupId: z.uuid(),
+  backupName: z.string(),
+  createdAt: z.iso.datetime(),
+  verifiedAt: z.iso.datetime(),
+  applicationVersion: z.string(),
+  schemaVersion: z.string(),
+  databaseSizeBytes: z.number().int().nonnegative(),
+  attachmentCount: z.number().int().nonnegative(),
+  rowCounts: z.record(z.string(), z.number().int().nonnegative()),
+  currentRowCounts: z.record(z.string(), z.number().int().nonnegative()),
+  safetyBackupWillBeCreated: z.literal(true),
+});
+export type RestorePreviewDto = z.infer<typeof restorePreviewDtoSchema>;
+
 export interface OperationsReadinessDto {
   databaseReady: boolean;
   attachmentStorageReady: boolean;

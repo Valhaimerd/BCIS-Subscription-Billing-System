@@ -159,8 +159,8 @@
   flex: 0 0 43px;
   place-items: center;
   border-radius: 12px;
-  background: #e8f2fd;
-  color: #2868c5;
+  background: #e4f1e8;
+  color: #3f7059;
 }
 
 .work-card--attention .work-card-icon {
@@ -202,7 +202,7 @@
   align-items: center;
   gap: 5px;
   margin-top: auto;
-  color: #235ea8;
+  color: #3f7059;
   font-size: 12px;
   font-weight: 800;
 }
@@ -215,7 +215,7 @@
 .trend-data > summary {
   cursor: pointer;
   padding: 14px 4px 0;
-  color: #235ea8;
+  color: #3f7059;
   font-size: 13px;
   font-weight: 750;
 }
@@ -232,7 +232,7 @@
   max-height: 100dvh;
   margin: 0;
   border-radius: 20px 0 0 20px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: -24px 0 60px rgb(8 29 56 / 27%);
   overflow-y: auto;
   animation: sheet-enter 190ms ease-out;
@@ -281,7 +281,7 @@
 }
 
 .detail-sheet-heading button:hover {
-  background: #e8f2fd;
+  background: #e4f1e8;
 }
 
 .detail-sheet-stat {

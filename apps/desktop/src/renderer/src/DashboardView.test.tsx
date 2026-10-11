@@ -88,9 +88,9 @@ describe('DashboardView', () => {
         name: 'Review the month at a glance',
       }),
     ).toBeVisible();
-    await waitFor(() =>
-      expect(document.querySelectorAll('.trend-point')).toHaveLength(2),
-    );
+    expect(
+      screen.getByRole('img', { name: 'Billing versus collection bars' }),
+    ).toBeVisible();
   });
 
   it('updates the period when dates change and exposes trend values as text', async () => {
@@ -107,7 +107,7 @@ describe('DashboardView', () => {
       expect(dashboardRequest).toHaveBeenLastCalledWith({
         from: '2026-09-01',
         to: '2026-09-30',
-        asOf: expect.any(String),
+        asOf: '2026-09-30',
       }),
     );
     await user.click(screen.getByText('View monthly figures'));
@@ -116,7 +116,32 @@ describe('DashboardView', () => {
         name: 'Monthly billing and collection values',
       }),
     ).toBeVisible();
-    expect(screen.getByText('2026-09')).toBeVisible();
+    expect(screen.getAllByText('2026-09').length).toBeGreaterThan(0);
+  });
+
+  it('shows period payment mix and end-date receivables as readable ring charts', async () => {
+    renderHome(['report.view'], {
+      ...dashboard,
+      currentReceivableCentavos: 100000,
+      paymentMethods: [
+        { method: 'CASH', count: 2, amountCentavos: 40000 },
+        { method: 'GCASH', count: 1, amountCentavos: 22000 },
+      ],
+    });
+
+    expect(
+      await screen.findByRole('img', { name: 'Payment methods by amount' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('img', { name: 'Receivables by invoice age' }),
+    ).toBeVisible();
+    expect(screen.getByText('Cash · 2 payments')).toBeVisible();
+    expect(screen.getByText('GCash · 1 payment')).toBeVisible();
+    expect(screen.getByText('1–30 days')).toBeVisible();
+    expect(screen.getByText('As of 2026-10-10')).toBeVisible();
+    expect(
+      screen.getByRole('img', { name: 'Billing versus collection bars' }),
+    ).toBeVisible();
   });
 
   it('does not request or display management totals for Cashier', async () => {

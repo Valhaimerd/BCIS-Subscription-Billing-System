@@ -31,8 +31,10 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function setup(canManage = false) {
-  const summary = vi.fn(async (asOf: string) => receivableSummary(asOf));
+function setup(canManage = false, canManageSettings = false) {
+  const summary = vi.fn(async (query: { asOf: string }) =>
+    receivableSummary(query.asOf),
+  );
   const list = vi.fn(async () => ({
     items: [] as ReceivableDetailDto[],
     page: 1,
@@ -50,6 +52,11 @@ function setup(canManage = false) {
     }),
   );
   const suspend = vi.fn(async () => undefined);
+  const updateSettings = vi.fn(async () => ({
+    gracePeriodDays: 5,
+    suspensionThresholdDays: 60,
+    reconnectionFeeCentavos: 0,
+  }));
   window.bcis = {
     receivables: {
       summary,
@@ -63,6 +70,7 @@ function setup(canManage = false) {
         suspensionThresholdDays: 60,
         reconnectionFeeCentavos: 0,
       })),
+      updateSettings,
     },
     masterData: {
       references: vi.fn(async () => ({
@@ -73,8 +81,13 @@ function setup(canManage = false) {
       })),
     },
   } as unknown as NonNullable<typeof window.bcis>;
-  render(<ReceivablesView canManage={canManage} />);
-  return { summary, list, history, suspend };
+  render(
+    <ReceivablesView
+      canManage={canManage}
+      canManageSettings={canManageSettings}
+    />,
+  );
+  return { summary, list, history, suspend, updateSettings };
 }
 
 afterEach(() => {
@@ -83,39 +96,67 @@ afterEach(() => {
 });
 
 describe('ReceivablesView', () => {
+  it('keeps delinquency policy editing in owner receivables settings', async () => {
+    const user = userEvent.setup();
+    const { updateSettings } = setup(true, true);
+
+    await user.click(await screen.findByText('Adjust policy'));
+    await user.clear(screen.getByLabelText('Grace period (days)'));
+    await user.type(screen.getByLabelText('Grace period (days)'), '10');
+    await user.click(screen.getByRole('button', { name: 'Save policy' }));
+
+    expect(updateSettings).toHaveBeenCalledWith({
+      gracePeriodDays: 10,
+      suspensionThresholdDays: 60,
+      reconnectionFeeCentavos: 0,
+    });
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Delinquency policy saved and audited.',
+    );
+  });
+
+  it('hides delinquency policy editing without settings permission', async () => {
+    setup(true, false);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Follow-up desk' }),
+    ).toBeVisible();
+    expect(screen.queryByText('Adjust policy')).not.toBeInTheDocument();
+  });
+
   it('uses one selected as-of date for summary and follow-up rows', async () => {
     const user = userEvent.setup();
     const { summary, list } = setup();
     const date = screen.getByLabelText('Balance date');
     await waitFor(() => expect(summary).toHaveBeenCalled());
-    const initialAsOf = summary.mock.calls[0]?.[0];
+    const initialAsOf = summary.mock.calls[0]?.[0].asOf;
     await user.clear(date);
     await user.type(date, '2026-09-30');
-    expect(
-      screen.getByText(`RECEIVABLES SNAPSHOT · AS OF ${initialAsOf}`),
-    ).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => expect(summary).toHaveBeenLastCalledWith('2026-09-30'));
+    expect(screen.getByText(`Receivables · ${initialAsOf}`)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Apply date' }));
+    await waitFor(() =>
+      expect(summary).toHaveBeenLastCalledWith(
+        expect.objectContaining({ asOf: '2026-09-30' }),
+      ),
+    );
     expect(list).toHaveBeenLastCalledWith(
       expect.objectContaining({ asOf: '2026-09-30', page: 1 }),
     );
-    expect(
-      screen.getByText('RECEIVABLES SNAPSHOT · AS OF 2026-09-30'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Receivables · 2026-09-30')).toBeInTheDocument();
   });
 
   it('shows decision metrics, states the queue order, and exposes aging selection', async () => {
     const user = userEvent.setup();
     const { list } = setup();
     expect(
-      await screen.findByRole('heading', { name: 'Accounts receivable' }),
+      await screen.findByRole('heading', { name: 'Follow-up desk' }),
     ).toBeVisible();
     expect(screen.getByText('Overdue balance')).toBeVisible();
-    expect(screen.getByText('Follow-up accounts')).toBeVisible();
-    expect(screen.getByText('Suspension candidates')).toBeVisible();
-    expect(screen.getByText('Total receivables')).toBeVisible();
+    expect(screen.getByText('Follow-up cases')).toBeVisible();
+    expect(screen.getByText('Eligible for suspension')).toBeVisible();
+    expect(screen.getByText('Total outstanding')).toBeVisible();
     expect(
-      screen.getByText('Sorted by eligibility, oldest due date, then arrears'),
+      screen.getByRole('tablist', { name: 'Case priority' }),
     ).toBeVisible();
     const agingRange = screen.getByRole('button', { name: /1–30 days/ });
     expect(agingRange).toHaveAttribute('aria-pressed', 'false');
@@ -128,44 +169,51 @@ describe('ReceivablesView', () => {
     expect(agingRange).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('keeps the displayed summary and rows paired to the latest as-of request', async () => {
+  it('keeps the latest queue and snapshot when an older request finishes later', async () => {
     const user = userEvent.setup();
-    const { summary } = setup();
+    const { summary, list } = setup();
     await waitFor(() => expect(summary).toHaveBeenCalledTimes(1));
+    const asOf = summary.mock.calls[0]![0].asOf;
 
     const stale = deferred<ReturnType<typeof receivableSummary>>();
     summary.mockImplementationOnce(() => stale.promise);
-    const date = screen.getByLabelText('Balance date');
-    await user.clear(date);
-    await user.type(date, '2026-09-30');
-    await user.click(screen.getByRole('button', { name: 'Refresh' }));
-    await waitFor(() => expect(summary).toHaveBeenLastCalledWith('2026-09-30'));
+    await user.click(screen.getByRole('tab', { name: /Due soon/ }));
+    await waitFor(() => expect(summary).toHaveBeenCalledTimes(2));
 
-    summary.mockImplementationOnce(async () =>
-      receivableSummary('2026-10-01', 123),
+    summary.mockImplementationOnce(async () => receivableSummary(asOf, 123));
+    await user.click(screen.getByRole('tab', { name: /All cases/ }));
+    expect(await screen.findByText(`Receivables · ${asOf}`)).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /All cases/ })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
     );
-    await user.clear(date);
-    await user.type(date, '2026-10-01');
-    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ queue: 'ALL' }),
+    );
     expect(
-      await screen.findByText('RECEIVABLES SNAPSHOT · AS OF 2026-10-01'),
-    ).toBeVisible();
-    expect(screen.getAllByText('₱1.23')).toHaveLength(2);
+      screen.getByRole('region', { name: 'Receivables snapshot' }),
+    ).toHaveTextContent('₱1.23');
 
     await act(async () => {
-      stale.resolve(receivableSummary('2026-09-30', 99_900));
+      stale.resolve(receivableSummary(asOf, 99_900));
       await stale.promise;
     });
+    expect(screen.getByRole('tab', { name: /All cases/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     expect(
-      screen.getByText('RECEIVABLES SNAPSHOT · AS OF 2026-10-01'),
-    ).toBeVisible();
-    expect(screen.getAllByText('₱1.23')).toHaveLength(2);
+      screen.getByRole('region', { name: 'Receivables snapshot' }),
+    ).toHaveTextContent('₱1.23');
+    expect(screen.queryByText('₱999.00')).not.toBeInTheDocument();
   });
 
   it('keeps management actions hidden for read-only roles and explains empty results', async () => {
     setup();
     expect(
-      await screen.findByText('No accounts match these filters.'),
+      await screen.findByText('No cases in this view'),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Save policy' }),
@@ -217,20 +265,18 @@ describe('ReceivablesView', () => {
       pageSize: 20,
       total: 1,
     });
-    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await user.click(screen.getByRole('button', { name: 'Apply date' }));
     const review = await screen.findByRole('button', {
-      name: 'Review Maria Santos receivable details',
+      name: /Review case/,
     });
     review.focus();
     await user.keyboard('{Enter}');
     expect(
-      await screen.findByLabelText('Receivable service control detail'),
+      await screen.findByRole('dialog', { name: 'Receivable case' }),
     ).toBeVisible();
     expect(screen.getByText('SUB-0001')).toBeVisible();
-    expect(screen.getAllByText('INV-0001')).toHaveLength(2);
-    expect(
-      screen.getByRole('heading', { name: 'Service status timeline' }),
-    ).toBeVisible();
+    expect(screen.getByText('INV-0001')).toBeVisible();
+    expect(screen.getByText('Service history · 0 events')).toBeVisible();
     expect(history).toHaveBeenCalledWith(account.serviceAccountId);
     expect(
       screen.queryByRole('button', { name: 'Approve suspension' }),
@@ -279,18 +325,19 @@ describe('ReceivablesView', () => {
       pageSize: 20,
       total: 1,
     });
-    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    await user.click(screen.getByRole('button', { name: 'Apply date' }));
     await user.click(
       await screen.findByRole('button', {
-        name: 'Review Maria Santos receivable details',
+        name: /Review case/,
       }),
     );
-    expect(
-      await screen.findByRole('heading', { name: 'Approve suspension' }),
-    ).toBeVisible();
     await user.click(
-      screen.getByRole('button', { name: 'Approve suspension' }),
+      await screen.findByRole('button', { name: 'Review suspension' }),
     );
+    expect(
+      await screen.findByRole('heading', { name: 'Confirm suspension' }),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Record suspension' }));
 
     expect(suspend).toHaveBeenCalledWith(account.serviceAccountId, {
       effectiveDate: expect.any(String),

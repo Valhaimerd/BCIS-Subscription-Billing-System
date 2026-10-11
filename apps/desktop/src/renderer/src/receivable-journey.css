@@ -87,6 +87,79 @@
   padding: 26px;
   box-shadow: 0 14px 38px rgba(20, 38, 63, 0.055);
 }
+.policy-settings-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(20, 38, 63, 0.045);
+}
+.policy-settings-card > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  cursor: pointer;
+  padding: 18px 22px;
+  list-style: none;
+}
+.policy-settings-card > summary::-webkit-details-marker {
+  display: none;
+}
+.policy-settings-card > summary:hover {
+  background: #f8faff;
+}
+.policy-settings-card > summary > div {
+  display: grid;
+  gap: 5px;
+}
+.policy-settings-card > summary strong {
+  color: var(--ink);
+  font-size: 15px;
+}
+.policy-settings-card > summary small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.policy-settings-toggle {
+  flex: 0 0 auto;
+  border: 1px solid #cbd7e6;
+  border-radius: 9px;
+  background: var(--surface);
+  color: #183252;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.policy-settings-card[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.policy-settings-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 18px 22px 22px;
+}
+.policy-settings-form label {
+  display: grid;
+  gap: 7px;
+  color: #43546b;
+  font-size: 12px;
+  font-weight: 700;
+}
+.policy-settings-form input {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 9px 11px;
+}
+.policy-settings-form .primary-action {
+  min-height: 42px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
 .receivable-section-title {
   margin-bottom: 20px;
 }
@@ -128,7 +201,7 @@
   box-shadow: 0 9px 18px rgba(40, 100, 217, 0.12);
 }
 .aging-tile[aria-pressed='true'] {
-  background: #eef5ff;
+  background: #eaf5ed;
 }
 .aging-tile span,
 .aging-tile small {
@@ -451,9 +524,6 @@
   background: white;
   cursor: pointer;
 }
-.delinquency-policy {
-  gap: 12px;
-}
 @media (max-width: 1100px) {
   .receivable-snapshot {
     grid-template-columns: repeat(2, 1fr);
@@ -463,6 +533,9 @@
   }
   .receivable-filters {
     grid-template-columns: repeat(3, 1fr);
+  }
+  .policy-settings-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 720px) {
@@ -474,6 +547,13 @@
   .receivable-snapshot,
   .case-grid,
   .case-sheet-grid {
+    grid-template-columns: 1fr;
+  }
+  .policy-settings-card > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .policy-settings-form {
     grid-template-columns: 1fr;
   }
   .aging-visual {

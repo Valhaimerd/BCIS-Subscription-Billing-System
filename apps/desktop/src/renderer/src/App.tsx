@@ -10,11 +10,14 @@ import {
   LogOut,
   Map,
   Menu,
+  Moon,
   Package,
   Radio,
   Users,
   WalletCards,
   Wifi,
+  Sun,
+  ChevronDown,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -33,6 +36,18 @@ import { SubscriberQuickSearch } from './SubscriberQuickSearch';
 import { visibleNavigation, type AppViewId } from './navigation';
 
 const SIDEBAR_STORAGE_KEY = 'bcis.sidebar.collapsed';
+const THEME_STORAGE_KEY = 'bcis.theme';
+type Theme = 'light' | 'dark';
+
+function readTheme(): Theme {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) === 'dark'
+      ? 'dark'
+      : 'light';
+  } catch {
+    return 'light';
+  }
+}
 
 const viewIcons = {
   Home: House,
@@ -63,6 +78,16 @@ const errorMessage = (error: unknown) =>
 export function App(): React.JSX.Element {
   const [session, setSession] = useState<DesktopSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<Theme>(readTheme);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Keep the selected theme for this session if storage is unavailable.
+    }
+  }, [theme]);
 
   useEffect(() => {
     if (!window.bcis) return setLoading(false);
@@ -77,7 +102,14 @@ export function App(): React.JSX.Element {
   if (!session) return <LoginScreen onAuthenticated={setSession} />;
   if (session.locked)
     return <LockScreen session={session} onChange={setSession} />;
-  return <AuthenticatedShell session={session} onChange={setSession} />;
+  return (
+    <AuthenticatedShell
+      session={session}
+      onChange={setSession}
+      theme={theme}
+      onThemeChange={setTheme}
+    />
+  );
 }
 
 function LoginScreen({
@@ -288,9 +320,13 @@ function LockScreen({
 function AuthenticatedShell({
   session,
   onChange,
+  theme,
+  onThemeChange,
 }: {
   session: DesktopSession;
   onChange: (session: DesktopSession | null) => void;
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
 }) {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] =
@@ -302,6 +338,25 @@ function AuthenticatedShell({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeNavigationButtonRef = useRef<HTMLButtonElement>(null);
   const wasNavigationOpen = useRef(false);
+  const accountMenuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node))
+        accountMenuRef.current?.removeAttribute('open');
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && accountMenuRef.current?.open) {
+        accountMenuRef.current.open = false;
+        accountMenuRef.current.querySelector('summary')?.focus();
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
   useEffect(() => {
     if (!navigator.userAgent.includes('jsdom')) window.scrollTo({ top: 0 });
   }, [activeView]);
@@ -493,13 +548,48 @@ function AuthenticatedShell({
               <LogOut aria-hidden="true" size={17} />
             </button>
           </div>
-          <div className="user-placeholder" aria-label="Authentication status">
-            <span aria-hidden="true">{initials}</span>
-            <div>
-              <strong>{session.user.fullName}</strong>
-              <small>{session.user.roles.join(', ')}</small>
+          <details className="account-menu" ref={accountMenuRef}>
+            <summary
+              aria-label={`Account settings for ${session.user.fullName}`}
+            >
+              <span className="account-avatar" aria-hidden="true">
+                {initials}
+              </span>
+              <span className="account-identity">
+                <strong>{session.user.fullName}</strong>
+                <small>{session.user.roles.join(', ')}</small>
+              </span>
+              <ChevronDown
+                className="account-chevron"
+                aria-hidden="true"
+                size={16}
+              />
+            </summary>
+            <div className="account-popover">
+              <div className="account-popover-heading">
+                <strong>Account settings</strong>
+                <span>{session.user.fullName}</span>
+              </div>
+              <p>Profile preferences are coming soon.</p>
+              <fieldset className="theme-options">
+                <legend>Appearance</legend>
+                <button
+                  aria-pressed={theme === 'light'}
+                  onClick={() => onThemeChange('light')}
+                  type="button"
+                >
+                  <Sun aria-hidden="true" size={16} /> Light
+                </button>
+                <button
+                  aria-pressed={theme === 'dark'}
+                  onClick={() => onThemeChange('dark')}
+                  type="button"
+                >
+                  <Moon aria-hidden="true" size={16} /> Dark
+                </button>
+              </fieldset>
             </div>
-          </div>
+          </details>
         </header>
         <main id="main-content" tabIndex={-1}>
           <header className="page-heading">
@@ -583,6 +673,9 @@ function AuthenticatedShell({
           ) : activeView === 'Receivables' ? (
             <ReceivablesView
               canManage={session.user.permissions.includes('receivable.manage')}
+              canManageSettings={session.user.permissions.includes(
+                'settings.manage',
+              )}
               canViewBilling={session.user.permissions.includes('billing.view')}
             />
           ) : activeView === 'Reports' ? (

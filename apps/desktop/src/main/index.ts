@@ -370,10 +370,13 @@ ipcMain.handle(
 ipcMain.handle('operations:backups:create', () =>
   authClient.data('/backups', { method: 'POST' }),
 );
+ipcMain.handle('operations:backups:restore-preview', (_event, id: string) =>
+  authClient.data(`/backups/${encodeURIComponent(id)}/restore-preview`),
+);
 ipcMain.handle(
   'operations:backups:restore',
   (_event, id: string, confirmation: string) =>
-    authClient.data(`/backups/${id}/restore`, {
+    authClient.data(`/backups/${encodeURIComponent(id)}/restore`, {
       method: 'POST',
       body: JSON.stringify({ confirmation }),
     }),

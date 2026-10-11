@@ -1,10 +1,10 @@
 /* Workbench foundations: the shared shell and current page surfaces. */
 :root {
-  --ink: #132942;
-  --navy: #132942;
+  --ink: #20352e;
+  --navy: #20352e;
   --navy-deep: #0e223b;
-  --blue: #2868c5;
-  --brand-soft: #e9f2ff;
+  --blue: #3f7059;
+  --brand-soft: #e5f0e8;
   --canvas: #edf2f8;
   --surface: #ffffff;
   --muted: #5e7188;
@@ -28,7 +28,7 @@
 .sidebar {
   width: 248px;
   overflow-x: hidden;
-  background: linear-gradient(165deg, #102844 0%, #142d4d 58%, #10263f 100%);
+  background: linear-gradient(165deg, #203c2c 0%, #142d4d 58%, #10263f 100%);
   box-shadow: var(--elevation-shell);
   transition:
     width 200ms ease,
@@ -42,7 +42,7 @@
   min-height: 82px;
   gap: 11px;
   border-bottom: 1px solid rgb(213 231 250 / 11%);
-  background: #102844;
+  background: #203c2c;
   padding: 17px 14px;
 }
 
@@ -234,7 +234,7 @@
 
 .session-actions button:hover {
   transform: translateY(-1px);
-  background: #e9f2ff;
+  background: #e5f0e8;
 }
 
 .user-placeholder > span {
@@ -256,7 +256,7 @@
 
 .page-heading p {
   margin-bottom: 8px;
-  color: #2868c5;
+  color: #3f7059;
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.07em;

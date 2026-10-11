@@ -185,11 +185,13 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 ### Task 10: Backup and recovery
 
-**Files:** `OperationsView.tsx`, `operation-routes.ts`, `operations.ts`, contracts/bridge, tests and manual.
+**Files:** `OperationsView.tsx`, `ReceivablesView.tsx`, `operation-routes.ts`, `operations.ts`, contracts/bridge, tests and manual. Receivables policy editing moves back to its own workspace so backup/recovery stays focused.
 
-- [ ] Build health, last verified backup and retention cards; history timeline with register option.
-- [ ] Add a guarded restore flow with backup selection, verification, impact review, safety backup and explicit confirmation; preserve current server safety controls.
-- [ ] Check failure/interruption reporting, owner-only authorization, unavailable files, and restore result links in real Electron.
+- [x] Build health, last verified backup and retention cards; history timeline with register option.
+- [x] Add a guarded restore flow with backup selection, verification, impact review, safety backup and explicit confirmation; preserve current server safety controls.
+- [x] Check Owner authorization, unavailable/incompatible backups, retry/cancel states, and restore-result links with focused API/UI tests; the real Electron check confirms that this environment’s incompatible backups fail closed and cannot expose the restore action.
+
+The current development data has no schema-compatible backup, so real Electron cannot reach its impact screen. The impact and success/result-link path is covered with a synthetic UI fixture; no real restore or backup creation is performed during this check.
 
 **Done when:** Owner can understand backup state and restore impact without relying on a small ambiguous table-row action.
 

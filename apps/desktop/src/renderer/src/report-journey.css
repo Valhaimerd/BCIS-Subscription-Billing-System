@@ -51,7 +51,7 @@
   text-align: left;
   border: 1px solid var(--line);
   border-radius: 15px;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   cursor: pointer;
   box-shadow: 0 7px 20px rgba(20, 38, 63, 0.035);
@@ -118,7 +118,7 @@
   border-radius: 20px;
   padding: 8px 12px;
   color: #1e569c;
-  background: #eef5ff;
+  background: #eaf5ed;
   white-space: nowrap;
   font-size: 0.78rem;
   font-weight: 700;
@@ -178,7 +178,7 @@
   padding: 10px 13px;
   border: 1px solid #bed2e9;
   border-radius: 9px;
-  background: #eef5ff;
+  background: #eaf5ed;
   color: #174b8f;
   font-weight: 700;
   cursor: pointer;
@@ -380,7 +380,7 @@
   margin-top: 15px;
   padding: 16px;
   border-radius: 12px;
-  background: #eef5ff;
+  background: #eaf5ed;
 }
 .report-source-evidence p {
   margin: 6px 0;

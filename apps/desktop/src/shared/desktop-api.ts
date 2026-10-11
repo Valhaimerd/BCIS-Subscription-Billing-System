@@ -28,6 +28,7 @@ import type {
   ApplicationSettingsDto,
   BackupHistoryDto,
   OperationsReadinessDto,
+  RestorePreviewDto,
 } from '@bcis/contracts';
 
 export interface ReferenceData {
@@ -221,6 +222,7 @@ export interface DesktopApi {
       pageSize: number,
     ) => Promise<Paginated<BackupHistoryDto>>;
     createBackup: () => Promise<BackupHistoryDto>;
+    previewRestore: (id: string) => Promise<RestorePreviewDto>;
     restoreBackup: (
       id: string,
       confirmation: string,

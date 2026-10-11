@@ -50,9 +50,11 @@ const emptyFilters: Filters = {
 
 export function ReceivablesView({
   canManage,
+  canManageSettings = false,
   canViewBilling = false,
 }: {
   canManage: boolean;
+  canManageSettings?: boolean;
   canViewBilling?: boolean;
 }) {
   const [date, setDate] = useState(today);
@@ -68,6 +70,7 @@ export function ReceivablesView({
   const [selected, setSelected] = useState<ReceivableDetailDto | null>(null);
   const [history, setHistory] = useState<ServiceControlHistoryDto | null>(null);
   const [settings, setSettings] = useState<DelinquencySettingsDto | null>(null);
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const [invoice, setInvoice] = useState<Awaited<
     ReturnType<NonNullable<typeof window.bcis>['billing']['getInvoice']>
   > | null>(null);
@@ -246,6 +249,29 @@ export function ReceivablesView({
       await refreshCase(selected.serviceAccountId);
     } catch (caught) {
       setError(message(caught));
+    }
+  }
+
+  async function savePolicy(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setSavingPolicy(true);
+    setError('');
+    try {
+      setSettings(
+        await window.bcis!.receivables.updateSettings({
+          gracePeriodDays: Number(data.get('gracePeriodDays')),
+          suspensionThresholdDays: Number(data.get('suspensionThresholdDays')),
+          reconnectionFeeCentavos: Math.round(
+            Number(data.get('reconnectionFee')) * 100,
+          ),
+        }),
+      );
+      setNotice('Delinquency policy saved and audited.');
+    } catch (caught) {
+      setError(message(caught));
+    } finally {
+      setSavingPolicy(false);
     }
   }
 
@@ -570,6 +596,70 @@ export function ReceivablesView({
           </button>
         )}
       </section>
+
+      {canManageSettings && settings ? (
+        <details className="policy-settings-card">
+          <summary>
+            <div>
+              <span className="eyebrow">Owner settings</span>
+              <strong>Delinquency policy</strong>
+              <small>
+                {settings.gracePeriodDays}-day grace ·{' '}
+                {settings.suspensionThresholdDays}-day suspension threshold ·{' '}
+                {money(settings.reconnectionFeeCentavos)} reconnection fee
+              </small>
+            </div>
+            <span className="policy-settings-toggle">Adjust policy</span>
+          </summary>
+          <form className="policy-settings-form" onSubmit={savePolicy}>
+            <label>
+              Grace period (days)
+              <input
+                key={`policy-grace-${settings.gracePeriodDays}`}
+                type="number"
+                name="gracePeriodDays"
+                min="0"
+                max="365"
+                required
+                defaultValue={settings.gracePeriodDays}
+              />
+            </label>
+            <label>
+              Suspension threshold (days)
+              <input
+                key={`policy-threshold-${settings.suspensionThresholdDays}`}
+                type="number"
+                name="suspensionThresholdDays"
+                min="1"
+                max="730"
+                required
+                defaultValue={settings.suspensionThresholdDays}
+              />
+            </label>
+            <label>
+              Reconnection fee (PHP)
+              <input
+                key={`policy-fee-${settings.reconnectionFeeCentavos}`}
+                type="number"
+                name="reconnectionFee"
+                min="0"
+                step="0.01"
+                required
+                defaultValue={(settings.reconnectionFeeCentavos / 100).toFixed(
+                  2,
+                )}
+              />
+            </label>
+            <button
+              className="primary-action"
+              disabled={savingPolicy}
+              type="submit"
+            >
+              {savingPolicy ? 'Saving…' : 'Save policy'}
+            </button>
+          </form>
+        </details>
+      ) : null}
 
       {selected && (
         <ModalDialog

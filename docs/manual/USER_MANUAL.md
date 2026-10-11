@@ -6,7 +6,7 @@ Start the desktop client, enter the assigned username and password, then select 
 
 Each workspace keeps one page title and purpose line above its work area. The compact top bar stays available for subscriber search and session controls, with an opaque background so scrolling content does not show through it.
 
-**Today** starts with a recommended action and a small set of work cards based on your permissions. Select a Receivables, Payments, or Field collections card to open a focused detail panel; select its action to continue into that workspace. The panel closes with **Close details**, `Esc`, or the shaded area. Staff with reporting access can change the dashboard date range, see the billing-versus-collection chart, and expand **View monthly figures** for the chart values. Open **Reports** for detailed financial breakdowns. Cashiers see **Start a payment** when permitted, with customer and payment shortcuts beneath it.
+**Today** starts with a recommended action and a small set of work cards based on your permissions. Select a Receivables, Payments, or Field collections card to open a focused detail panel; select its action to continue into that workspace. The panel closes with **Close details**, `Esc`, or the shaded area. Staff with reporting access can change **From date** and **To date**; the totals, payment-method ring, and billing-versus-collection chart update automatically for that period. The receivables aging ring shows balances **as of the To date**. A single month appears as paired bars; a longer range appears as a monthly trend. Each ring lists its exact amounts, and **View monthly figures** shows the chart values. Open **Reports** for detailed financial breakdowns. Cashiers see **Start a payment** when permitted, with customer and payment shortcuts beneath it.
 
 For a complete laboratory walkthrough, sign in as `owner`. In normal operations, use the account appropriate to the work:
 
@@ -23,7 +23,7 @@ User and role administration is not currently available in the desktop
 workflow. Accounting / Auditor can review financial corrections and audit
 history, but cannot create adjustments or reverse payments.
 
-Use the lock button when stepping away and sign out when finished. Seeded accounts are laboratory accounts and must receive unique passwords before real use.
+Select your name or avatar in the top bar to open **Account settings**. Choose **Light** or **Dark** under Appearance; the choice is saved on this device. Profile preferences are a placeholder. Use the lock button when stepping away and sign out when finished. Seeded accounts are laboratory accounts and must receive unique passwords before real use.
 
 When an invoice, receipt, collection batch, or receivable account is opened, its details appear in a modal dialog over a dimmed workspace. Select **Close**, press `Esc`, or select the shaded area outside the dialog to return to the list.
 
@@ -193,7 +193,7 @@ The required lifecycle is `OPEN → IN PROGRESS → SUBMITTED → REMITTED → R
 5. Select **Review case**. Read the outstanding balance, oldest invoice, last payment, service state, policy basis, and service history. Where your role allows billing access, open the source invoice or ledger entries.
 6. For a qualifying active service, select **Review suspension**, confirm the effective date and reason, then record it. For a paid suspended service, review and record a reconnection request; complete the request after service restoration. The API checks eligibility again when you submit.
 
-Only authorized personnel can approve suspension or reconnection. The Owner changes delinquency thresholds in **Backup & recovery** under **Delinquency policy**. Every service-state change remains in history. No contact history is displayed because the system does not yet store contact attempts.
+Only authorized personnel can approve suspension or reconnection. The Owner changes delinquency thresholds from the **Receivables** desk by expanding **Delinquency policy** and selecting **Adjust policy**. Every service-state change remains in history. No contact history is displayed because the system does not yet store contact attempts.
 
 ### Step 10 — Produce operational and management reports
 
@@ -211,11 +211,11 @@ Only authorized personnel can approve suspension or reconnection. The Owner chan
 3. Confirm that submitted collection batches have a recorded remittance and reviewed difference.
 4. Review dashboard collection and receivable totals.
 5. As Owner, select **Backup & recovery**.
-6. Confirm that Database, Attachments, Backup storage, and PostgreSQL tools show `Ready`.
+6. Review the latest verified backup and confirm that Database connection, Attachment storage, Backup storage, and PostgreSQL tools show `Ready`.
 7. Select **Create verified backup**.
-8. Wait for the success message and confirm that the backup appears in **Backup history** as available and successful.
+8. Wait for the success message and confirm that the backup appears in the **Backup register** as verified with files available.
 
-Restore is not a routine end-of-day action. Perform it only during a maintenance window using an approved backup and the exact displayed `RESTORE <backup name>` confirmation. Never interrupt an active restore.
+Restore is not a routine end-of-day action. During an approved maintenance window, choose **Review restore** on an available backup. Wait for checksum and compatibility verification, review the snapshot details and row-count differences, then continue through the final warning. The server creates a safety checkpoint before replacing the database and attachments. Enter the exact displayed `RESTORE <backup name>` phrase and select **Restore and replace current data**. Keep BCIS open until verification finishes; use **View restore result in history** to inspect the recorded outcome. If the request is interrupted or its outcome is unclear, refresh the register and inspect the latest record before taking another recovery action.
 
 ### Step 12 — Continue or end the subscriber relationship
 

@@ -146,6 +146,10 @@ export class ReportService {
         this.build('BILLING_COLLECTION', filters),
         this.build('COLLECTOR_PERFORMANCE', filters),
       ]);
+    const { from: periodStart, to: periodEnd } = dateBounds(
+      input.from,
+      input.to,
+    );
     const asOfEnd = new Date(`${input.asOf}T23:59:59.999Z`);
     const recent = await this.db
       .select({
@@ -159,10 +163,31 @@ export class ReportService {
       .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
       .leftJoin(receipts, eq(receipts.paymentId, payments.id))
       .where(
-        and(eq(payments.status, 'POSTED'), lte(payments.paymentDate, asOfEnd)),
+        and(
+          eq(payments.status, 'POSTED'),
+          gte(payments.paymentDate, periodStart),
+          lte(payments.paymentDate, periodEnd),
+          lte(payments.paymentDate, asOfEnd),
+        ),
       )
       .orderBy(desc(payments.paymentDate))
       .limit(6);
+    const methods = new Map<
+      DashboardDto['paymentMethods'][number]['method'],
+      DashboardDto['paymentMethods'][number]
+    >();
+    for (const row of collections.rows) {
+      const method =
+        row.method as DashboardDto['paymentMethods'][number]['method'];
+      const current = methods.get(method) ?? {
+        method,
+        count: 0,
+        amountCentavos: 0,
+      };
+      current.count += number(row.count);
+      current.amountCentavos += number(row.amountCentavos);
+      methods.set(method, current);
+    }
     return {
       asOf: input.asOf,
       from: input.from,
@@ -179,11 +204,7 @@ export class ReportService {
         collectedCentavos: number(row.collectedCentavos),
         differenceCentavos: number(row.differenceCentavos),
       })),
-      paymentMethods: collections.rows.map((row) => ({
-        method: row.method as DashboardDto['paymentMethods'][number]['method'],
-        count: number(row.count),
-        amountCentavos: number(row.amountCentavos),
-      })),
+      paymentMethods: [...methods.values()],
       aging: aging.buckets,
       collectors: collectorPerformance.rows.slice(0, 5).map((row) => ({
         collector: text(row.collector),

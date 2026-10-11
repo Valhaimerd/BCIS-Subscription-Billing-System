@@ -110,6 +110,31 @@ try {
     throw new Error(
       'Dashboard monthly trend is not unique, ordered, and centavo-safe.',
     );
+  if (
+    dashboard.monthlyTrend.reduce(
+      (sum, point) => sum + point.billedCentavos,
+      0,
+    ) !== dashboard.billedCentavos ||
+    dashboard.monthlyTrend.reduce(
+      (sum, point) => sum + point.collectedCentavos,
+      0,
+    ) !== dashboard.collectedCentavos ||
+    new Set(dashboard.paymentMethods.map((item) => item.method)).size !==
+      dashboard.paymentMethods.length ||
+    dashboard.paymentMethods.reduce(
+      (sum, item) => sum + item.amountCentavos,
+      0,
+    ) !== dashboard.collectedCentavos ||
+    Object.values(dashboard.aging).reduce((sum, amount) => sum + amount, 0) !==
+      dashboard.currentReceivableCentavos +
+        dashboard.overdueReceivableCentavos ||
+    dashboard.recentPayments.some(
+      (item) =>
+        item.paymentDate < `${filters.from}T00:00:00.000Z` ||
+        item.paymentDate > `${filters.to}T23:59:59.999Z`,
+    )
+  )
+    throw new Error('Dashboard chart data does not reconcile to its period.');
 
   const collection = await reports.report('COLLECTIONS', {
     ...filters,
@@ -191,7 +216,7 @@ try {
   }
 
   process.stdout.write(
-    'Task 8 live checks passed: dashboard/AR and monthly trend checks, subscriber activity bounds/redaction, collection reconciliation, empty range, pagination-independent exports, and eight inspected PDF/XLSX samples.\n',
+    'Task 8 live checks passed: dashboard/AR, trend and chart reconciliation, subscriber activity bounds/redaction, collection reconciliation, empty range, pagination-independent exports, and eight inspected PDF/XLSX samples.\n',
   );
 } finally {
   await database.close();

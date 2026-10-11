@@ -1,6 +1,7 @@
 import {
   applicationSettingsInputSchema,
   backupHistoryQuerySchema,
+  restorePreviewDtoSchema,
   restoreBackupInputSchema,
 } from '@bcis/contracts';
 import type { FastifyInstance } from 'fastify';
@@ -11,6 +12,16 @@ import type { OperationService } from './operations.js';
 
 const protectedRoute = { security: [{ bearerAuth: [] }] } as const;
 const idParams = z.object({ id: z.uuid() });
+const restorePreviewSuccess = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['success', 'message', 'data'],
+  properties: {
+    success: { type: 'boolean', const: true },
+    message: { type: 'string' },
+    data: z.toJSONSchema(restorePreviewDtoSchema),
+  },
+} as const;
 
 export async function registerOperationRoutes(
   app: FastifyInstance,
@@ -125,6 +136,27 @@ export async function registerOperationRoutes(
         message: 'Backup created and verified.',
         data: await operations.create(actor.id),
       });
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/backups/:id/restore-preview',
+    {
+      schema: {
+        ...protectedRoute,
+        tags: ['Operations'],
+        summary: 'Verify a backup and preview restore impact',
+        response: { 200: restorePreviewSuccess },
+      },
+    },
+    async (request) => {
+      await authorize(request.headers.authorization, 'backup.restore');
+      const { id } = idParams.parse(request.params);
+      return {
+        success: true,
+        message: 'Backup verified for restore review.',
+        data: await operations.previewRestore(id),
+      };
     },
   );
 

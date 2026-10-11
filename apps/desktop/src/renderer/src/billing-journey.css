@@ -3,7 +3,7 @@
   grid-template-columns: minmax(0, 1fr) 220px;
   gap: 28px;
   padding: 28px;
-  background: linear-gradient(115deg, #fff 35%, #eef5ff);
+  background: linear-gradient(115deg, #fff 35%, #eaf5ed);
 }
 .billing-hero h2 {
   margin: 5px 0 8px;
@@ -31,7 +31,7 @@
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 8px 24px #18385a0c;
 }
 .billing-hero-metrics span,
@@ -59,7 +59,7 @@
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 .billing-hero-action button {
   min-height: 46px;
@@ -121,7 +121,7 @@
   height: 21px;
   flex: 0 0 21px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
 }
 .billing-flow-body h3 {
   margin: 0 0 8px;
@@ -177,7 +177,7 @@
   border: 1px solid var(--line);
   border-radius: 16px;
   padding: 18px;
-  background: #fff;
+  background: var(--surface);
   color: var(--navy);
   text-align: left;
   box-shadow: 0 8px 24px #18385a0b;

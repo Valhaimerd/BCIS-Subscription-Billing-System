@@ -7,7 +7,7 @@
   padding: clamp(22px, 4vw, 40px);
   border: 1px solid #dbe5f2;
   border-radius: 24px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 18px 48px rgba(26, 51, 87, 0.09);
 }
 .receive-heading,
@@ -65,7 +65,7 @@
   font-weight: 700;
 }
 .receive-progress li.is-active {
-  border-color: #3672d4;
+  border-color: #4e8664;
   color: #173f81;
 }
 .receive-progress li span {
@@ -77,7 +77,7 @@
   background: #e8eef6;
 }
 .receive-progress li.is-active span {
-  background: #3672d4;
+  background: #4e8664;
   color: white;
 }
 .receive-stage {
@@ -121,7 +121,7 @@
   padding: 10px 12px;
   border: 1px solid #bfd0e5;
   border-radius: 11px;
-  background: #fff;
+  background: var(--surface);
   color: #142f52;
   font: inherit;
 }
@@ -150,7 +150,7 @@
   padding: 15px;
   border: 1px solid #d9e4f1;
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   color: #19365d;
   text-align: left;
   box-shadow: 0 3px 10px rgba(32, 66, 109, 0.04);
@@ -244,7 +244,7 @@
   padding: 13px 16px;
   border-left: 3px solid #4482d9;
   border-radius: 0 10px 10px 0;
-  background: #eef5ff;
+  background: #eaf5ed;
   color: #375579;
   font-size: 13px;
   line-height: 1.55;
@@ -257,14 +257,14 @@
   padding: 10px 18px;
   border: 1px solid #b9cbe2;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: #204267;
   font-weight: 700;
 }
 .receive-actions > button.primary-action,
 .receive-search button.primary-action {
-  border-color: #2768c6;
-  background: #2768c6;
+  border-color: #3f7059;
+  background: #3f7059;
   color: #fff;
   box-shadow: 0 7px 16px rgba(39, 104, 198, 0.18);
 }

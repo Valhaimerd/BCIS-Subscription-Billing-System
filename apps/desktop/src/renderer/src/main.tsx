@@ -6,6 +6,7 @@ import { App } from './App';
 import './styles.css';
 import './shell.css';
 import './workbench-home.css';
+import './theme.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

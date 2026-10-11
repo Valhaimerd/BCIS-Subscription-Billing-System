@@ -172,7 +172,7 @@ Report definitions and date basis are documented in [Report definitions](REPORT_
 
 Dashboard queries require ISO `from`, `to`, and `asOf` dates. Report queries add `granularity` (`DAILY`, `WEEKLY`, `MONTHLY`, or `ANNUAL`), `dimension` (`PLAN`, `SERVICE`, or `AREA`), optional `subscriberId`, optional search text, and preview pagination. The same search text narrows both preview rows and full exports; export ignores only preview pagination. `from` cannot be after `to`.
 
-The dashboard includes `monthlyTrend`, with one `{ period, billedCentavos, collectedCentavos, differenceCentavos }` point for each month containing invoice or payment activity. Billed amounts follow invoice dates; collected amounts follow payment dates. These are distinct transaction cohorts and are not a direct invoice-to-payment reconciliation. All amounts are integer centavos.
+The dashboard includes `monthlyTrend`, with one `{ period, billedCentavos, collectedCentavos, differenceCentavos }` point for each month containing invoice or payment activity. Billed amounts follow invoice dates; collected amounts follow payment dates. These are distinct transaction cohorts and are not a direct invoice-to-payment reconciliation. `paymentMethods` aggregates collected amounts by method across the selected date range; `recentPayments` is limited to that range. Receivables and aging are a balance snapshot as of `asOf`, which the Today screen sets to the selected end date. All amounts are integer centavos.
 
 Supported report kinds are `COLLECTIONS`, `BILLING_COLLECTION`, `REVENUE`, `AR_AGING`, `SUBSCRIBER_MASTER`, `SUBSCRIBER_SOA`, `COLLECTOR_PERFORMANCE`, `ADJUSTMENTS_REVERSALS_VOIDS`, `USER_ACTIVITY`, and `AUDIT`. A subscriber statement requires `subscriberId`. Exports deliberately ignore preview pagination and contain the complete authorized filtered result. The API returns only report-specific allowlisted columns; it never includes credentials, tokens, proof paths, or raw internal records.
 
@@ -180,13 +180,16 @@ Supported report kinds are `COLLECTIONS`, `BILLING_COLLECTION`, `REVENUE`, `AR_A
 
 These endpoints are Owner-only through server-side permissions. Readiness, backup history, and creation require `backup.create`; restore requires `backup.restore`; retention reads/changes require `settings.manage`. Administrators and Cashiers do not receive these permissions.
 
-| Method  | Path                           | Purpose                                                      |
-| ------- | ------------------------------ | ------------------------------------------------------------ |
-| `GET`   | `/api/v1/operations/readiness` | Check database, storage, backup tools, and restore state     |
-| `GET`   | `/api/v1/application-settings` | Read the bounded backup-retention setting                    |
-| `PATCH` | `/api/v1/application-settings` | Change the retained backup-directory count                   |
-| `GET`   | `/api/v1/backups`              | Paginate immutable backup/restore outcomes                   |
-| `POST`  | `/api/v1/backups`              | Create and verify a database plus attachment backup          |
-| `POST`  | `/api/v1/backups/:id/restore`  | Guardedly restore and verify one available successful backup |
+| Method  | Path                                  | Purpose                                                          |
+| ------- | ------------------------------------- | ---------------------------------------------------------------- |
+| `GET`   | `/api/v1/operations/readiness`        | Check database, storage, backup tools, and restore state         |
+| `GET`   | `/api/v1/application-settings`        | Read the bounded backup-retention setting                        |
+| `PATCH` | `/api/v1/application-settings`        | Change the retained backup-directory count                       |
+| `GET`   | `/api/v1/backups`                     | Paginate immutable backup/restore outcomes                       |
+| `POST`  | `/api/v1/backups`                     | Create and verify a database plus attachment backup              |
+| `GET`   | `/api/v1/backups/:id/restore-preview` | Verify one backup and return version, file, and row-count impact |
+| `POST`  | `/api/v1/backups/:id/restore`         | Guardedly restore and verify one available successful backup     |
 
-Restore input is `{ "confirmation": "RESTORE <backup-name>" }`. An absent backup returns `404`; a mismatched confirmation, incompatible manifest, or concurrent restore returns `409`; safe tool/storage failures return `503`. While recovery is active, non-health requests receive a sanitized `503`. No endpoint accepts a filesystem path, executable path, connection string, or shell fragment from the client.
+The restore preview is a read-only preflight. It verifies database and attachment checksums, checks application/schema compatibility, and returns current versus snapshot row counts. An unavailable or changed file, incompatible manifest, or active restore returns `409`; an absent or non-restorable history record returns `404`. The final restore endpoint repeats verification before mutation, creates a safety backup, and runs integrity checks.
+
+Restore input is `{ "confirmation": "RESTORE <backup-name>" }`. A mismatched confirmation or concurrent restore returns `409`; safe tool/storage failures return `503`. While recovery is active, non-health requests receive a sanitized `503`. No endpoint accepts a filesystem path, executable path, connection string, or shell fragment from the client.

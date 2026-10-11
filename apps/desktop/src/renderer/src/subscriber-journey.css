@@ -24,7 +24,7 @@
   padding: 18px;
   border: 1px solid #d7e3f0;
   border-radius: 15px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 7px 20px rgba(28, 58, 95, 0.06);
 }
 .profile-overview-cards .data-card {
@@ -37,7 +37,7 @@
   padding: 5px;
   border: 1px solid #d4e1ef;
   border-radius: 12px;
-  background: #edf4fb;
+  background: #ecf4ed;
 }
 .profile-money-switch button {
   padding: 9px 16px;
@@ -48,7 +48,7 @@
   font-weight: 700;
 }
 .profile-money-switch button[aria-pressed='true'] {
-  background: #fff;
+  background: var(--surface);
   color: #21579d;
   box-shadow: 0 3px 10px rgba(28, 58, 95, 0.1);
 }
@@ -77,12 +77,12 @@
   padding: 12px 15px;
   border: 1px solid #bdcfe5;
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 .subscriber-search-form button {
-  border: 1px solid #2669c7;
+  border: 1px solid #3f7059;
   border-radius: 11px;
-  background: #2669c7;
+  background: #3f7059;
   color: #fff;
   padding: 10px 20px;
   font-weight: 700;
@@ -101,7 +101,7 @@
   padding: 20px;
   border: 1px solid #d7e2f0;
   border-radius: 18px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 7px 21px rgba(28, 58, 95, 0.055);
   text-align: left;
   color: #183253;
@@ -183,7 +183,7 @@
   padding: clamp(22px, 4vw, 40px);
   border: 1px solid #dbe6f2;
   border-radius: 24px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 18px 48px rgba(24, 53, 88, 0.09);
 }
 .journey-heading {
@@ -210,7 +210,7 @@
   padding: 9px 14px;
   border: 1px solid #bfcee0;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: #315579;
   font-weight: 700;
 }
@@ -226,7 +226,7 @@
   padding: 16px;
   border: 1px solid #d5e0ed;
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 18px 40px rgba(24, 53, 88, 0.2);
 }
 .journey-exit p {
@@ -238,7 +238,7 @@
   padding: 8px 11px;
   border: 1px solid #b9cbe0;
   border-radius: 9px;
-  background: #fff;
+  background: var(--surface);
   color: #204d82;
   font-weight: 700;
 }
@@ -273,7 +273,7 @@
   font-weight: 700;
 }
 .journey-steps li.is-active {
-  border-color: #3672d4;
+  border-color: #4e8664;
   color: #1e518d;
 }
 .journey-steps li span {
@@ -286,7 +286,7 @@
   background: #e8eef6;
 }
 .journey-steps li.is-active span {
-  background: #3672d4;
+  background: #4e8664;
   color: #fff;
 }
 .journey-stage {
@@ -332,7 +332,7 @@
   padding: 10px 12px;
   border: 1px solid #bdcfe5;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: #193759;
   font: inherit;
 }
@@ -345,7 +345,7 @@
   padding: 10px 12px;
   border: 1px solid #d9e3ee;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 .journey-check input {
   width: 17px;
@@ -361,13 +361,13 @@
   padding: 10px 18px;
   border: 1px solid #bdcde0;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: #29496d;
   font-weight: 700;
 }
 .journey-actions .primary-action {
-  border-color: #2868c5;
-  background: #2868c5;
+  border-color: #3f7059;
+  background: #3f7059;
   color: #fff;
   box-shadow: 0 8px 18px rgba(40, 104, 197, 0.18);
 }
@@ -404,7 +404,7 @@
   padding: 17px;
   border: 1px solid #cfdeee;
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   color: #1b3c64;
   text-align: left;
   box-shadow: 0 5px 16px rgba(30, 59, 97, 0.05);
