@@ -107,6 +107,7 @@ function renderApp(current: DesktopSession | null = ownerSession) {
       ledger: vi.fn(async () => []),
     },
     payments: {
+      get: vi.fn(),
       preview: vi.fn(),
       list: vi.fn(async () => ({
         items: [],

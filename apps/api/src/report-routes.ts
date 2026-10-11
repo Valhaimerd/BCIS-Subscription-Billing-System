@@ -79,6 +79,7 @@ export async function registerReportRoutes(
     },
     async (request) => {
       const { kind } = kindParams.parse(request.params);
+      await authorize(request.headers.authorization, 'report.view');
       await authorize(request.headers.authorization, 'report.export');
       if (kind === 'AUDIT' || kind === 'USER_ACTIVITY')
         await authorize(request.headers.authorization, 'audit.view');

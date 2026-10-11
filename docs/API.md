@@ -106,6 +106,7 @@ All endpoints require a Bearer session. History and proof reads require `payment
 | ------ | ------------------------------------- | --------------------------------------------------------------- |
 | `GET`  | `/api/v1/payments/preview`            | Preview oldest-first allocation and remaining subscriber credit |
 | `GET`  | `/api/v1/payments`                    | Search payment, receipt, and GCash history                      |
+| `GET`  | `/api/v1/payments/:id`                | Read one payment with receipt and reversal details              |
 | `POST` | `/api/v1/payments`                    | Atomically post/allocate a non-GCash payment and issue receipt  |
 | `POST` | `/api/v1/gcash-submissions`           | Store a pending GCash record and validated proof image          |
 | `POST` | `/api/v1/payments/:id/gcash-decision` | Approve/post or reject pending GCash evidence                   |
@@ -157,7 +158,11 @@ Receivables are calculated from finalized, non-void invoices and their adjustmen
 
 ## Dashboard and reports
 
-All endpoints require a Bearer session. Dashboard and report previews require `report.view`; file generation requires `report.export`. User-activity and audit outputs additionally require `audit.view`.
+All endpoints require a Bearer session. Dashboard and report previews require `report.view`; file generation requires both `report.view` and `report.export`. User-activity and audit outputs additionally require `audit.view`.
+
+Report definitions and date basis are documented in [Report definitions](REPORT_DEFINITIONS.md). Correction rows include actor, timestamp, reason, and linked source IDs; audit rows include event ID, entity ID, and recorded old/new values. Hidden row metadata supports read-only drill-down in the desktop UI and does not add columns to PDF or XLSX.
+
+`GET /api/v1/payments/:id` requires `payment.view` and returns one payment summary with receipt and reversal details. It supports the report source trail without granting a write permission.
 
 | Method | Path                           | Purpose                                                |
 | ------ | ------------------------------ | ------------------------------------------------------ |

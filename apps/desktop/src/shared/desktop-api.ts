@@ -119,6 +119,7 @@ export interface DesktopApi {
     ) => Promise<LedgerEntryDto[]>;
   };
   payments: {
+    get: (id: string) => Promise<PaymentSummaryDto>;
     preview: (
       subscriberId: string,
       amountCentavos: number,

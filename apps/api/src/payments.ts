@@ -514,6 +514,20 @@ export class PaymentService {
     };
   }
 
+  async get(id: string): Promise<PaymentSummaryDto> {
+    const [row] = await this.db
+      .select({ payment: payments, subscriber: subscribers })
+      .from(payments)
+      .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
+      .where(eq(payments.id, id));
+    if (!row) throw new PaymentError(404, 'Payment not found.');
+    return this.summary(
+      row.payment,
+      row.subscriber.fullName,
+      row.subscriber.accountNumber,
+    );
+  }
+
   async proof(id: string) {
     const [proof] = await this.db
       .select()

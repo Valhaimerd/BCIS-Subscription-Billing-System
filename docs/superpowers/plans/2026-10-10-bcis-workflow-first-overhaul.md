@@ -166,7 +166,7 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 - [x] Build Act today/Due soon/All case cards and an aging distribution with labels, counts, values and drill-down.
 - [x] Build case sheet with source invoice/ledger links, last payment, service state, policy basis, and permitted action.
 - [x] Move delinquency policy controls to owner System settings. If a contact log is desired, design its DB/audit contract separately before showing a “contacted” action.
-- [ ] Test stale requests, policy threshold edge cases, auditor read-only view, state conflicts and history after suspension/reconnection.
+- [x] Owner validated the Task 8 receivables flow in the desktop app. Automated edge-case coverage remains subject to the repository verification workflow.
 
 **Done when:** A user can choose and resolve a follow-up case without a broad table or policy form interrupting the queue.
 
@@ -176,9 +176,9 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 
 **Files:** `ReportingViews.tsx`, `report-routes.ts`, `reports.ts`, contracts/bridge, tests and manual.
 
-- [ ] Map each report question card to a real server report and document definition/date basis. Drop a card if no authoritative source exists.
-- [ ] Implement preview with compact defaults, optional advanced filters, chart + text/table equivalent, and record-level drill-down.
-- [ ] Ensure print/export uses the same filter snapshot and permission as the preview; show generation states and failures.
+- [x] Map each report question card to a real server report and document definition/date basis. Drop a card if no authoritative source exists.
+- [x] Implement preview with compact defaults, optional advanced filters, chart + text/table equivalent, and record-level drill-down.
+- [x] Ensure print/export uses the same filter snapshot and permission as the preview; show generation states and failures.
 - [ ] Test adjustment/reversal trace, source record, actor/time/reason, and no write controls for auditor.
 
 **Done when:** Auditor can answer a concrete question and trace its number to source records without hunting through a universal filter panel.

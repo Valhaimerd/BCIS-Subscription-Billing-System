@@ -592,6 +592,10 @@ function AuthenticatedShell({
               canViewSubscribers={session.user.permissions.includes(
                 'subscriber.view',
               )}
+              canViewBilling={session.user.permissions.includes('billing.view')}
+              canViewPayments={session.user.permissions.includes(
+                'payment.view',
+              )}
             />
           ) : activeView === 'Backup & recovery' ? (
             <OperationsView

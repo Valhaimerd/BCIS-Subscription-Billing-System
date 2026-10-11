@@ -155,6 +155,9 @@ ipcMain.handle(
       `/payments/preview?${new URLSearchParams({ subscriberId, amountCentavos: String(amountCentavos) })}`,
     ),
 );
+ipcMain.handle('payments:get', (_event, id: string) =>
+  authClient.data(`/payments/${encodeURIComponent(id)}`),
+);
 ipcMain.handle(
   'payments:list',
   (

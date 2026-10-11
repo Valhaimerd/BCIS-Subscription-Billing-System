@@ -198,12 +198,11 @@ Only authorized personnel can approve suspension or reconnection. The Owner chan
 ### Step 10 — Produce operational and management reports
 
 1. Select **Reports**.
-2. Choose a report from **Revenue & collection**, **Subscriber accounts**, or, when authorized, **Controls & audit**. Audit reports appear only for users with audit permission; subscriber statements appear only when the role can search subscriber records.
-3. Enter the applicable From, To, As-of, grouping, dimension, subscriber, and search filters.
-4. Select **Preview report**.
-5. Review the title, filter summary, totals, and rows.
-6. The preview is paginated. **Export PDF** and **Export XLSX** include all authorized rows matching the selected date, grouping, subscriber, and search filters, regardless of the preview page. **Print** prints the current preview.
-7. Open the saved file and confirm that its filter summary and row count match the requested full result.
+2. Choose a question under **Revenue & collection**, **Subscriber accounts**, or, when authorized, **Controls & audit**. Each card explains the report's source and date basis. See [Report definitions](../REPORT_DEFINITIONS.md) for exact calculations.
+3. Set **From**, **To**, and **As of** for dated reports. Use **More filters** only when you need grouping, revenue dimension, or result search. A subscriber statement also requires a subscriber. The subscriber register always shows current master data.
+4. Select **Preview answer**. Read the filter snapshot, totals, chart where applicable, and record cards. Bar labels include numeric values; open **View detailed register** for a tabular equivalent.
+5. Select a record card to inspect values and the source trail. Correction and audit records show actor, time, reason, and linked source where available. Source invoice and payment buttons appear only when your role can view them.
+6. **Print preview** prints the visible page. **Export PDF** and **Export XLSX** use the preview's frozen filters and include all authorized matching rows. Wait for the saved or cancelled message.
 
 ### Step 11 — Perform end-of-day review and backup
 

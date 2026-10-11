@@ -57,15 +57,62 @@ const money = (value: number) =>
 const number = (value: unknown) => Number(value ?? 0);
 const text = (value: unknown) =>
   value === null || value === undefined ? '' : String(value);
-const filterReportRows = (rows: Row[], query = '') => {
+const filterReportRows = (
+  rows: Row[],
+  columns: ReportColumnDto[],
+  query = '',
+) => {
   const normalized = query.trim().toLowerCase();
   return normalized
     ? rows.filter((row) =>
-        Object.values(row).some((value) =>
-          text(value).toLowerCase().includes(normalized),
+        columns.some((column) =>
+          text(row[column.key]).toLowerCase().includes(normalized),
         ),
       )
     : rows;
+};
+const filteredTotals = (kind: ReportKind, rows: Row[]) => {
+  const sum = (key: string) =>
+    rows.reduce((total, row) => total + number(row[key]), 0);
+  switch (kind) {
+    case 'COLLECTIONS':
+      return { count: sum('count'), amountCentavos: sum('amountCentavos') };
+    case 'BILLING_COLLECTION':
+      return {
+        billedCentavos: sum('billedCentavos'),
+        collectedCentavos: sum('collectedCentavos'),
+        differenceCentavos: sum('differenceCentavos'),
+      };
+    case 'REVENUE':
+      return { allocatedRevenueCentavos: sum('allocatedRevenueCentavos') };
+    case 'AR_AGING':
+      return {
+        currentCentavos: sum('currentCentavos'),
+        overdueCentavos: sum('arrearsCentavos'),
+        totalCentavos: sum('totalCentavos'),
+      };
+    case 'SUBSCRIBER_MASTER':
+      return { subscribers: rows.length, services: sum('serviceCount') };
+    case 'SUBSCRIBER_SOA':
+      return {
+        debitCentavos: sum('debitCentavos'),
+        creditCentavos: sum('creditCentavos'),
+        balanceCentavos: number(rows.at(-1)?.balanceCentavos),
+      };
+    case 'COLLECTOR_PERFORMANCE':
+      return {
+        expectedCentavos: sum('expectedCentavos'),
+        collectedCentavos: sum('collectedCentavos'),
+        remittedCentavos: sum('remittedCentavos'),
+        differenceCentavos: sum('differenceCentavos'),
+      };
+    case 'ADJUSTMENTS_REVERSALS_VOIDS':
+      return { amountCentavos: sum('amountCentavos') };
+    case 'USER_ACTIVITY':
+      return { events: sum('count') };
+    case 'AUDIT':
+      return { events: rows.length };
+  }
 };
 const dateBounds = (from: string, to: string) => ({
   from: new Date(`${from}T00:00:00.000Z`),
@@ -163,10 +210,11 @@ export class ReportService {
 
   async report(kind: ReportKind, query: ReportQuery): Promise<ReportResultDto> {
     const report = await this.build(kind, query);
-    const matching = filterReportRows(report.rows, query.q);
+    const matching = filterReportRows(report.rows, report.columns, query.q);
     const page = sliceReportRows(matching, query.page, query.pageSize);
     return {
       ...report,
+      totals: query.q.trim() ? filteredTotals(kind, matching) : report.totals,
       rows: page.rows,
       page: query.page,
       pageSize: query.pageSize,
@@ -180,9 +228,10 @@ export class ReportService {
     format: 'pdf' | 'xlsx',
   ): Promise<ReportExportDto> {
     const report = await this.build(kind, query);
-    const matching = filterReportRows(report.rows, query.q);
+    const matching = filterReportRows(report.rows, report.columns, query.q);
     const filteredReport = {
       ...report,
+      totals: query.q?.trim() ? filteredTotals(kind, matching) : report.totals,
       rows: matching,
       pageSize: matching.length,
       total: matching.length,
@@ -226,11 +275,10 @@ export class ReportService {
                       : kind === 'USER_ACTIVITY'
                         ? await this.userActivity(filters)
                         : await this.audit(filters);
-    const displayedFilters: Record<string, string> = {
-      from: filters.from,
-      to: filters.to,
-      asOf: filters.asOf,
-    };
+    const displayedFilters: Record<string, string> =
+      kind === 'SUBSCRIBER_MASTER'
+        ? { basis: 'Current subscriber records' }
+        : { from: filters.from, to: filters.to, asOf: filters.asOf };
     if (kind === 'COLLECTIONS' || kind === 'BILLING_COLLECTION')
       displayedFilters.granularity = filters.granularity;
     if (kind === 'REVENUE') displayedFilters.dimension = filters.dimension;
@@ -414,6 +462,7 @@ export class ReportService {
       join ${subscribers} s on s.id = i.subscriber_id
       left join ${collectionAreas} ca on ca.id = s.collection_area_id
       where p.payment_date between ${from} and ${to}
+        and p.payment_date <= ${asOf}
         and pa.created_at <= ${asOf}
         and (p.status = 'POSTED' or (p.status = 'REVERSED' and not exists (
           select 1 from ${paymentReversals} pr where pr.payment_id = p.id and pr.created_at <= ${asOf}
@@ -462,7 +511,7 @@ export class ReportService {
     const details = await this.receivables.list({
       asOf: filters.asOf,
       page: 1,
-      pageSize: 100_000,
+      pageSize: Number.MAX_SAFE_INTEGER,
     });
     const summary = await this.receivables.summary(filters.asOf);
     return {
@@ -477,16 +526,22 @@ export class ReportService {
         { key: 'bucket', label: 'Age', type: 'text' },
         { key: 'arrearsCentavos', label: 'Arrears', type: 'money' },
       ] satisfies ReportColumnDto[],
-      rows: details.items.map((row) => ({
-        subscriber: `${row.subscriberAccountNumber} - ${row.subscriberName}`,
-        service: row.serviceAccountNumber,
-        area: row.collectionAreaName ?? 'Unassigned',
-        collector: row.collectorName ?? 'Unassigned',
-        monthsUnpaid: row.monthsUnpaid,
-        oldestInvoice: row.oldestUnpaidInvoice,
-        bucket: row.oldestAgingBucket,
-        arrearsCentavos: row.totalArrearsCentavos,
-      })),
+      rows: details.items
+        .filter((row) => row.totalOutstandingCentavos > 0)
+        .map((row) => ({
+          sourceType: 'invoice',
+          sourceId: row.oldestUnpaidInvoiceId ?? null,
+          subscriber: `${row.subscriberAccountNumber} - ${row.subscriberName}`,
+          service: row.serviceAccountNumber,
+          area: row.collectionAreaName ?? 'Unassigned',
+          collector: row.collectorName ?? 'Unassigned',
+          monthsUnpaid: row.monthsUnpaid,
+          oldestInvoice: row.oldestUnpaidInvoice,
+          bucket: row.oldestAgingBucket,
+          arrearsCentavos: row.totalArrearsCentavos,
+          currentCentavos: row.currentCentavos,
+          totalCentavos: row.totalOutstandingCentavos,
+        })),
       totals: {
         currentCentavos: summary.currentCentavos,
         overdueCentavos: summary.overdueCentavos,
@@ -498,6 +553,7 @@ export class ReportService {
   private async subscriberMaster() {
     const rows = await this.db
       .select({
+        id: subscribers.id,
         accountNumber: subscribers.accountNumber,
         subscriber: subscribers.fullName,
         status: subscribers.status,
@@ -529,6 +585,8 @@ export class ReportService {
       ] satisfies ReportColumnDto[],
       rows: rows.map((row) => ({
         ...row,
+        sourceType: 'subscriber',
+        sourceId: row.id,
         area: row.area ?? 'Unassigned',
         collector: row.collector ?? 'Unassigned',
       })),
@@ -555,7 +613,7 @@ export class ReportService {
     if (!subscriber) throw new ReportError(404, 'Subscriber not found.');
     const entries = await this.billing.ledger(filters.subscriberId, {
       from: filters.from,
-      to: filters.to,
+      to: filters.to < filters.asOf ? filters.to : filters.asOf,
     });
     return {
       title: `Subscriber SOA - ${subscriber.accountNumber}`,
@@ -568,6 +626,12 @@ export class ReportService {
         { key: 'balanceCentavos', label: 'Balance', type: 'money' },
       ] satisfies ReportColumnDto[],
       rows: entries.map((entry) => ({
+        sourceType: entry.invoiceId
+          ? 'invoice'
+          : entry.paymentId
+            ? 'payment'
+            : null,
+        sourceId: entry.invoiceId ?? entry.paymentId ?? null,
         date: entry.occurredAt.slice(0, 10),
         reference: entry.reference,
         description: entry.description,
@@ -602,8 +666,8 @@ export class ReportService {
       select c.full_name as collector, cb.id as "batchId",
         (select count(*)::int from ${batchAccounts} ba where ba.batch_id = cb.id) as "accountCount",
         coalesce((select sum(ba.total_due_centavos) from ${batchAccounts} ba where ba.batch_id = cb.id), 0)::int as "expectedCentavos",
-        coalesce((select sum(p.amount_centavos) from ${payments} p join ${batchAccounts} ba on ba.id = p.batch_account_id where ba.batch_id = cb.id and p.status = 'POSTED'), 0)::int as "collectedCentavos",
-        coalesce((select cr.amount_centavos from ${collectorRemittances} cr where cr.batch_id = cb.id), 0)::int as "remittedCentavos"
+        coalesce((select sum(p.amount_centavos) from ${payments} p join ${batchAccounts} ba on ba.id = p.batch_account_id where ba.batch_id = cb.id and p.payment_date <= ${new Date(`${filters.asOf}T23:59:59.999Z`)} and (p.status = 'POSTED' or (p.status = 'REVERSED' and not exists (select 1 from ${paymentReversals} pr where pr.payment_id = p.id and pr.created_at <= ${new Date(`${filters.asOf}T23:59:59.999Z`)})))), 0)::int as "collectedCentavos",
+        coalesce((select cr.amount_centavos from ${collectorRemittances} cr where cr.batch_id = cb.id and cr.remitted_at <= ${new Date(`${filters.asOf}T23:59:59.999Z`)}), 0)::int as "remittedCentavos"
       from ${collectionBatches} cb
       join ${collectors} c on c.id = cb.collector_id
       where cb.batch_date between ${filters.from} and ${filters.to}
@@ -673,78 +737,109 @@ export class ReportService {
 
   private async corrections(filters: ReportFilters) {
     const { from, to } = dateBounds(filters.from, filters.to);
+    const asOf = new Date(`${filters.asOf}T23:59:59.999Z`);
     const rows: Row[] = [];
     const adjustmentRows = await this.db
       .select({
+        sourceId: invoices.id,
         date: adjustments.createdAt,
         reference: invoices.invoiceNumber,
         subscriber: subscribers.fullName,
         amountCentavos: adjustments.amountCentavos,
         reason: adjustments.reason,
+        actor: users.fullName,
       })
       .from(adjustments)
       .innerJoin(invoices, eq(invoices.id, adjustments.invoiceId))
       .innerJoin(subscribers, eq(subscribers.id, invoices.subscriberId))
+      .leftJoin(users, eq(users.id, adjustments.actorUserId))
       .where(
-        and(gte(adjustments.createdAt, from), lte(adjustments.createdAt, to)),
+        and(
+          gte(adjustments.createdAt, from),
+          lte(adjustments.createdAt, to),
+          lte(adjustments.createdAt, asOf),
+        ),
       );
     rows.push(
       ...adjustmentRows.map((row) => ({
-        date: row.date.toISOString().slice(0, 10),
+        date: row.date.toISOString(),
         type: 'ADJUSTMENT',
+        sourceType: 'invoice',
+        sourceId: row.sourceId,
         reference: row.reference,
         subscriber: row.subscriber,
         amountCentavos: row.amountCentavos,
         reason: row.reason,
+        actor: row.actor ?? 'System',
       })),
     );
     const reversalRows = await this.db
       .select({
+        sourceId: payments.id,
         date: paymentReversals.createdAt,
         reference: receipts.receiptNumber,
         subscriber: subscribers.fullName,
         amountCentavos: payments.amountCentavos,
         reason: paymentReversals.reason,
+        actor: users.fullName,
       })
       .from(paymentReversals)
       .innerJoin(payments, eq(payments.id, paymentReversals.paymentId))
       .innerJoin(subscribers, eq(subscribers.id, payments.subscriberId))
       .leftJoin(receipts, eq(receipts.paymentId, payments.id))
+      .leftJoin(users, eq(users.id, paymentReversals.actorUserId))
       .where(
         and(
           gte(paymentReversals.createdAt, from),
           lte(paymentReversals.createdAt, to),
+          lte(paymentReversals.createdAt, asOf),
         ),
       );
     rows.push(
       ...reversalRows.map((row) => ({
-        date: row.date.toISOString().slice(0, 10),
+        date: row.date.toISOString(),
         type: 'PAYMENT REVERSAL',
+        sourceType: 'payment',
+        sourceId: row.sourceId,
         reference: row.reference ?? 'No receipt',
         subscriber: row.subscriber,
         amountCentavos: -row.amountCentavos,
         reason: row.reason,
+        actor: row.actor ?? 'System',
       })),
     );
     const voidRows = await this.db
       .select({
+        sourceId: invoices.id,
         date: invoices.voidedAt,
         reference: invoices.invoiceNumber,
         subscriber: subscribers.fullName,
         amountCentavos: invoices.totalCentavos,
         reason: invoices.voidReason,
+        actor: sql<
+          string | null
+        >`(select u.full_name from audit_logs al left join users u on u.id = al.actor_user_id where al.action = 'INVOICE_VOIDED' and al.entity_id = ${invoices.id} order by al.created_at desc limit 1)`,
       })
       .from(invoices)
       .innerJoin(subscribers, eq(subscribers.id, invoices.subscriberId))
-      .where(and(gte(invoices.voidedAt, from), lte(invoices.voidedAt, to)));
+      .where(
+        and(
+          gte(invoices.voidedAt, from),
+          lte(invoices.voidedAt, to),
+          lte(invoices.voidedAt, asOf),
+        ),
+      );
     rows.push(
       ...voidRows.map((row) => ({
-        date: row.date?.toISOString().slice(0, 10) ?? '',
+        date: row.date?.toISOString() ?? '',
         type: 'VOID INVOICE',
+        sourceType: 'invoice',
+        sourceId: row.sourceId,
         reference: row.reference,
         subscriber: row.subscriber,
         amountCentavos: -row.amountCentavos,
         reason: row.reason ?? '',
+        actor: row.actor ?? 'System',
       })),
     );
     rows.sort((left, right) => text(left.date).localeCompare(text(right.date)));
@@ -756,6 +851,7 @@ export class ReportService {
         { key: 'reference', label: 'Reference', type: 'text' },
         { key: 'subscriber', label: 'Subscriber', type: 'text' },
         { key: 'amountCentavos', label: 'Amount', type: 'money' },
+        { key: 'actor', label: 'Actor', type: 'text' },
         { key: 'reason', label: 'Reason', type: 'text' },
       ] satisfies ReportColumnDto[],
       rows,
@@ -770,6 +866,7 @@ export class ReportService {
 
   private async userActivity(filters: ReportFilters) {
     const { from, to } = dateBounds(filters.from, filters.to);
+    const asOf = new Date(`${filters.asOf}T23:59:59.999Z`);
     type ActivityRow = {
       actor: string;
       action: string;
@@ -781,7 +878,7 @@ export class ReportService {
         count(*)::int as count, max(al.created_at) as "lastAt"
       from ${auditLogs} al
       left join ${users} u on u.id = al.actor_user_id
-      where al.created_at between ${from} and ${to}
+      where al.created_at between ${from} and ${to} and al.created_at <= ${asOf}
       group by coalesce(u.full_name, 'System'), al.action
       order by count(*) desc, actor, al.action
     `);
@@ -807,18 +904,28 @@ export class ReportService {
 
   private async audit(filters: ReportFilters) {
     const { from, to } = dateBounds(filters.from, filters.to);
+    const asOf = new Date(`${filters.asOf}T23:59:59.999Z`);
     const rows = await this.db
       .select({
+        eventId: auditLogs.id,
         createdAt: auditLogs.createdAt,
         actor: users.fullName,
         action: auditLogs.action,
         entityType: auditLogs.entityType,
         entityId: auditLogs.entityId,
         reason: auditLogs.reason,
+        oldValues: auditLogs.oldValues,
+        newValues: auditLogs.newValues,
       })
       .from(auditLogs)
       .leftJoin(users, eq(users.id, auditLogs.actorUserId))
-      .where(and(gte(auditLogs.createdAt, from), lte(auditLogs.createdAt, to)))
+      .where(
+        and(
+          gte(auditLogs.createdAt, from),
+          lte(auditLogs.createdAt, to),
+          lte(auditLogs.createdAt, asOf),
+        ),
+      )
       .orderBy(desc(auditLogs.createdAt));
     return {
       title: 'Audit Trail Report',
@@ -830,11 +937,16 @@ export class ReportService {
         { key: 'reason', label: 'Reason', type: 'text' },
       ] satisfies ReportColumnDto[],
       rows: rows.map((row) => ({
+        eventId: row.eventId,
         date: row.createdAt.toISOString(),
         actor: row.actor ?? 'System',
         action: row.action,
         entity: `${row.entityType}${row.entityId ? ` / ${row.entityId}` : ''}`,
+        entityType: row.entityType,
+        entityId: row.entityId,
         reason: row.reason ?? '',
+        oldValues: row.oldValues ? JSON.stringify(row.oldValues) : '',
+        newValues: row.newValues ? JSON.stringify(row.newValues) : '',
       })),
       totals: { events: rows.length },
     };

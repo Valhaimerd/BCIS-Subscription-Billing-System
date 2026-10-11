@@ -495,6 +495,8 @@ export class BillingService {
       return [
         {
           id: entry.id,
+          invoiceId: entry.invoiceId,
+          paymentId: entry.paymentId,
           occurredAt: entry.occurredAt.toISOString(),
           reference: entry.reference,
           description: entry.description,

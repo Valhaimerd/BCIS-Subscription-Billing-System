@@ -59,6 +59,7 @@ const desktopApi: DesktopApi = Object.freeze({
       ipcRenderer.invoke('billing:ledger', subscriberId, from, to),
   }),
   payments: Object.freeze({
+    get: (id: string) => ipcRenderer.invoke('payments:get', id),
     preview: (subscriberId: string, amountCentavos: number) =>
       ipcRenderer.invoke('payments:preview', subscriberId, amountCentavos),
     list: (query: Record<string, unknown>) =>

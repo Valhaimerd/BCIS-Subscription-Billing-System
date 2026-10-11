@@ -70,6 +70,26 @@ export async function registerPaymentRoutes(
     },
   );
 
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/payments/:id',
+    {
+      schema: {
+        ...protectedRoute,
+        tags: ['Payments'],
+        summary: 'Read one payment and its receipt or reversal',
+      },
+    },
+    async (request) => {
+      await authorize(request.headers.authorization, 'payment.view');
+      const { id } = z.object({ id: z.uuid() }).parse(request.params);
+      return {
+        success: true,
+        message: 'Payment loaded.',
+        data: await payments.get(id),
+      };
+    },
+  );
+
   app.post(
     '/api/v1/payments',
     {

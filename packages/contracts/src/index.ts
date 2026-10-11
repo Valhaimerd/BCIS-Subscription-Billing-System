@@ -415,6 +415,8 @@ export interface InvoiceDetailDto extends InvoiceSummaryDto {
 }
 export interface LedgerEntryDto {
   id: number;
+  invoiceId?: string | null;
+  paymentId?: string | null;
   occurredAt: string;
   reference: string;
   description: string;
