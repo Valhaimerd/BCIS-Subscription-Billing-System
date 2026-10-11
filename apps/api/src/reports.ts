@@ -818,7 +818,7 @@ export class ReportService {
         reason: invoices.voidReason,
         actor: sql<
           string | null
-        >`(select u.full_name from audit_logs al left join users u on u.id = al.actor_user_id where al.action = 'INVOICE_VOIDED' and al.entity_id = ${invoices.id} order by al.created_at desc limit 1)`,
+        >`(select u.full_name from audit_logs al left join users u on u.id = al.actor_user_id where al.action = 'INVOICE_VOIDED' and al.entity_id = ${invoices.id}::text order by al.created_at desc limit 1)`,
       })
       .from(invoices)
       .innerJoin(subscribers, eq(subscribers.id, invoices.subscriberId))

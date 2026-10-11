@@ -417,6 +417,30 @@
     white-space: normal;
   }
 }
+@media (min-width: 721px) and (max-height: 700px) {
+  .report-desk {
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .report-hero {
+    padding: 0 3px;
+  }
+  .report-hero h2 {
+    margin: 3px 0 5px;
+    font-size: 1.8rem;
+  }
+  .report-hero p {
+    display: none;
+  }
+  .report-group-tabs button {
+    padding: 7px 12px;
+  }
+  .report-question {
+    min-height: 142px;
+    padding: 14px;
+    gap: 6px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .report-question {
     transition: none;

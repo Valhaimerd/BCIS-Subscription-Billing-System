@@ -179,7 +179,7 @@ The second slice adds reusable actionable work cards and a focused detail sheet 
 - [x] Map each report question card to a real server report and document definition/date basis. Drop a card if no authoritative source exists.
 - [x] Implement preview with compact defaults, optional advanced filters, chart + text/table equivalent, and record-level drill-down.
 - [x] Ensure print/export uses the same filter snapshot and permission as the preview; show generation states and failures.
-- [ ] Test adjustment/reversal trace, source record, actor/time/reason, and no write controls for auditor.
+- [x] Test adjustment/reversal trace, source record, actor/time/reason, and no write controls for auditor with focused UI/API coverage, a read-only database integration check, and Electron visual checks at 1440×900 and 960×640.
 
 **Done when:** Auditor can answer a concrete question and trace its number to source records without hunting through a universal filter panel.
 
